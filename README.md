@@ -7,4 +7,4 @@ We select the following task: *TBD*.
 In particular, we would like to *TBD*. We do this because *TBD*.
 
 ## Authors
-The main authors of this repository are [Jonas Triki](https://github.com/JonasTriki) and [Naphat Amundsen](https://github.com/Laohachot). This repository will act as our submission to the Kaggle competition.
+The main authors of this repository are [Jonas Triki](https://github.com/JonasTriki) and [Naphat Amundsen](https://github.com/Laohachot). This repository will contain the main code for our submission to the Kaggle competition.
