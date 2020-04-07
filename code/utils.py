@@ -1,7 +1,8 @@
 '''
 This module contains general use utility functions
 '''
-
+import os
+import json
 import re 
 from string import punctuation as PUNCTUATION
 from nltk.corpus import stopwords as _stopwords
@@ -16,20 +17,34 @@ from tqdm.notebook import tqdm
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import skipgrams, make_sampling_table
 from tensorflow.keras.utils import to_categorical, Sequence
+from nltk.stem import WordNetLemmatizer 
+
+def set_kaggle_env_keys(kaggle_path: str = 'kaggle.json') -> None:
+    '''Sets environment keys required by the KaggleApi
+    
+    Args:
+        kaggle_path: Path to the Kaggle json file
+    '''
+    with open(kaggle_path, 'r') as file:
+        kaggle_json = json.load(file)
+
+        # Set OS environment variables
+        os.environ['KAGGLE_USERNAME'] = kaggle_json['username']
+        os.environ['KAGGLE_KEY'] = kaggle_json['key']
 
 def clean_text(text: str, stopwords: set=None, 
-               return_list: bool=False) -> Union[str, list]:
+               return_list: bool=True) -> Union[str, list]:
     '''
     Cleans text by turning to lower case, removing punctuations and stopwords
     
-    Args:
-    ------
+    Parameters:
+    --------------
     text: String to be cleaned 
     
     stopwords: Optional set of stopwords (as strings). If None is given, the stopwords
                will be acquired from nltk.corpus.stopwords.words('english')
                
-    return_list: Optional, will return list of tokens of True
+    return_list: Optional, will return list of tokens of True (True by default)
     
     Returns:
     --------
@@ -45,8 +60,17 @@ def clean_text(text: str, stopwords: set=None,
     text = text.replace('\n',' ')
     # Remove punctuations
     text = re.sub(f'[{PUNCTUATION}]','',text)
-    # Only select words that are NOT in stopwords
-    tokens = [t for t in text.split(' ') if t not in stopwords]
+
+    # Filter function, remove stopwords, numbers
+    # and strings that have length 1 or less
+    f = lambda t: (t not in stopwords) and \
+                  (not t.isnumeric()) and \
+                  (len(t) > 1)
+
+    # Lemmatize first, then filter
+    lemmatizer = WordNetLemmatizer()
+    tokens = [lemmatizer.lemmatize(t) for t in text.split()]
+    tokens = [t for t in tokens if f(t)]
     
     if return_list:
         return tokens
@@ -86,8 +110,8 @@ def interleave(A: Iterable, B: Iterable) -> tuple:
     '''
     return reduce(tuple.__add__, [(a,b) for a,b in zip(A,B)])
 
-def save_result(result: any, filename: str) -> None:
-    '''Saves result to file using Pickle.
+def save_pickle(result: any, filename: str) -> None:
+    '''Saves to file using Pickle.
 
     Args:
         result: Result to save
@@ -96,8 +120,8 @@ def save_result(result: any, filename: str) -> None:
     with open(filename, 'wb') as f:
         pickle.dump(result, f)
 
-def load_result(filename: str) -> any:
-    '''Loads result from file using Pickle.
+def load_pickle(filename: str) -> any:
+    '''Loads from file using Pickle.
 
     Args:
         filename: Where to load the result from

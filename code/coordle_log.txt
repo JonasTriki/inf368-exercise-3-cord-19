@@ -1,0 +1,17 @@
+2020-04-07 15:52:24.336884: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libnvinfer.so.6
+2020-04-07 15:52:24.337947: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libnvinfer_plugin.so.6
+Loading word2vec weights
+Created index
+Appending to index
+At iteration 0
+At iteration 100
+At iteration 200
+At iteration 300
+At iteration 400
+At iteration 500
+At iteration 600
+At iteration 700
+At iteration 800
+At iteration 900
+At iteration 1000
+Dumping index object to coordle_index_lite.p

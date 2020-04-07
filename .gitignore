@@ -244,3 +244,6 @@ dmypy.json
 # Generated/downloaded files
 code/data
 code/kaggle.json
+*.npy
+*.p
+*.model
