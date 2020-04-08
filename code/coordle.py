@@ -43,6 +43,8 @@ class EpochSaver(CallbackAny2Vec):
         self.epoch += 1    
 
 if __name__ == '__main__':
+    option = sys.argv.pop(0)
+
     df = pd.read_csv('data/cord-19-data.csv')
     # Load the last trained model
     print('Loading word2vec weights')
@@ -58,15 +60,15 @@ if __name__ == '__main__':
 
     print('Appending to index')
     sys.stdout.flush()
-    # for i in range(1024):
     t0 = time()
+    # for i in range(1024):
     for i in range(len(df)):
         coordle.add(df.iloc[i]['cord_uid'], df.iloc[i]['title'], df.iloc[i]['body_text'])
         if i % 100 == 0:
             print(f'At iteration {i}')
             sys.stdout.flush()
     print(f'Indexing files took {time()-t0:.2f} seconds')
-    # filename='coordle_index_lite.p'
+    # filename='coordle/coordle_index_lite.p'
     filename='coordle/coordle_index_full.p'
     sys.stdout.flush()
     print(f'Dumping index object to {filename}')

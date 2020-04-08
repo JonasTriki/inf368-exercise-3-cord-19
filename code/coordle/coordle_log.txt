@@ -1,5 +1,5 @@
-2020-04-07 16:06:49.438147: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libnvinfer.so.6
-2020-04-07 16:06:49.439308: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libnvinfer_plugin.so.6
+2020-04-07 20:09:53.848361: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libnvinfer.so.6
+2020-04-07 20:09:53.849393: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libnvinfer_plugin.so.6
 Loading word2vec weights
 Created index
 Appending to index
@@ -339,4 +339,5 @@ At iteration 33200
 At iteration 33300
 At iteration 33400
 At iteration 33500
+Indexing files took 2262.49 seconds
 Dumping index object to coordle/coordle_index_full.p
