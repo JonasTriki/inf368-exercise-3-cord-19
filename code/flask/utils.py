@@ -1,5 +1,4 @@
 def fix_authors(authors: str, authors_sep: str = ';', name_sep: str = ','):
-    print(authors)
     authors_split = authors.split(authors_sep)
     if len(authors_split) > 2:
 

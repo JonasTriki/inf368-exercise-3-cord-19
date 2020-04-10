@@ -247,4 +247,4 @@ code/kaggle.json
 *.npy
 *.p
 *.model
-.DS_store
+.DS_Store

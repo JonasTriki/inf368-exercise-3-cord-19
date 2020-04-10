@@ -26,12 +26,18 @@ a:link {
 a.reverse:link {
   color: white;
 }
+a.hidden:link {
+  color: #323232;
+}
 
 a:visited {
   color: #386fa4;
 }
 a.reverse:visited {
   color: white;
+}
+a.hidden:visited {
+  color: #323232;
 }
 
 a:hover {
@@ -41,6 +47,10 @@ a:hover {
 a.reverse:hover {
   color: white;
 }
+a.hidden:hover {
+  color: #323232;
+  text-decoration: none;
+}
 
 a:active {
   color: #386fa4;
@@ -48,9 +58,16 @@ a:active {
 a.reverse:active {
   color: white;
 }
+a.hidden:active {
+  color: #323232;
+}
+
+.span {
+  flex: 1;
+}
 
 #content {
-  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -63,7 +80,6 @@ a.reverse:active {
 }
 
 #top-area {
-  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -123,13 +139,11 @@ a.reverse:active {
 }
 
 #results {
-  max-width: 50rem;
   margin: 1rem auto 1rem;
-  height: 100%;
-  overflow: scroll;
 }
 
 .search-result {
+  max-width: 50rem;
   display: flex;
   padding: 1rem;
 }
@@ -151,4 +165,19 @@ a.reverse:active {
 .search-result-open-url img {
   width: 2rem;
   height: 2rem;
+}
+
+.hidden:not(a) {
+  display: none;
+}
+
+#load-more {
+  border: none;
+  color: white;
+  background-color: #386fa4;
+  padding: 1rem 4rem;
+  font-size: 1.25rem;
+  cursor: pointer;
+  text-align: center;
+  margin: 0 auto 1rem;
 }
