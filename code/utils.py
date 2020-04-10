@@ -32,7 +32,7 @@ def set_kaggle_env_keys(kaggle_path: str = 'kaggle.json') -> None:
         os.environ['KAGGLE_USERNAME'] = kaggle_json['username']
         os.environ['KAGGLE_KEY'] = kaggle_json['key']
 
-def clean_text(text: str, stopwords: set=None, 
+def clean_text(text: str, stopwords: set=None, punctuation: str=None,
                return_list: bool=True) -> Union[str, list]:
     '''
     Cleans text by turning to lower case, removing punctuations and stopwords
@@ -41,10 +41,15 @@ def clean_text(text: str, stopwords: set=None,
     --------------
     text: String to be cleaned 
     
-    stopwords: Optional set of stopwords (as strings). If None is given, the stopwords
-               will be acquired from nltk.corpus.stopwords.words('english')
+    stopwords: Optional set of stopwords (as strings). If None is given, the 
+               stopwords will be acquired from 
+               nltk.corpus.stopwords.words('english')
                
-    return_list: Optional, will return list of tokens of True (True by default)
+    punctuation: Optional string punctuations. If None is given, the 
+                 punctuations will be acquired from strings.punctuations
+
+    return_list: Optional, will return list of tokens of True (True by default),
+                 else it returns a string
     
     Returns:
     --------
@@ -54,12 +59,15 @@ def clean_text(text: str, stopwords: set=None,
     if stopwords is None:
         stopwords = set(_stopwords.words('english'))
         
+    if punctuation is None:
+        punctuation = PUNCTUATION
+
     # Lower case 
     text = text.lower()
     # Replace newlines with spaces
     text = text.replace('\n',' ')
     # Remove punctuations
-    text = re.sub(f'[{PUNCTUATION}]','',text)
+    text = re.sub(f'[{punctuation}]','',text)
 
     # Filter function, remove stopwords, numbers
     # and strings that have length 1 or less
