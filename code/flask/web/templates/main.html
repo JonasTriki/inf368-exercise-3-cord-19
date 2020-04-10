@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Coordle Search Engine</title>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+  </head>
+  <body>
+    <div id="content">
+      <div id="top-area">
+        <div id="top-text">
+          <div id="title">Coordle</div>
+          Search engine for the CORD-19 dataset using word embeddings and TF-IDF
+        </div>
+        <div id="search-area">
+          <div id="info">Type in a query below to get started</div>
+          <form method="POST" action="/search" id="query-form">
+            <input
+              type="text"
+              name="query"
+              placeholder="i.e: coronavirus symptoms"
+              id="search-box"
+            />
+            <input type="submit" value="Search" />
+          </form>
+        </div>
+      </div>
+      {% if results %}
+        <div class="sep-line"></div>
+        <div id="results">
+          {% for result in results %}
+          <div class="search-result">
+            <div class="search-result-content">
+              <div class="search-result-title">{{result.title}}</div>
+              <div class="search-result-subtitle">
+                {{result.authors}}, {{result.source}}, {{result.journal}}, {{result.publish_time}}
+              </div>
+              <div class="search-result-text-snippet">
+                {{ result.body_text[:300] }} {...}
+              </div>
+            </div>
+            <a href="{{ result.url }}" rel="noopener noreferrer" target="_blank" class="search-result-open-url">
+              <img src="{{ url_for('static', filename='open-in-new.svg') }}" />
+            </a>
+          </div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+    <div id="footer">
+      Made to help defeat 🦠 by 
+      <a class="reverse" href="https://github.com/JonasTriki" rel="noopener noreferrer" target="_blank">Jonas Triki</a>
+      and 
+      <a class="reverse" href="https://github.com/Laohachot" rel="noopener noreferrer" target="_blank">Naphat Amundsen</a>
+      . Source code can be found on
+      <a class="reverse" href="https://github.com/JonasTriki/inf368-exercise-3-cord-19" rel="noopener noreferrer" target="_blank">GitHub</a>.
+    </div>
+    <script>
+      // Handle search box events
+      searchBox = document.querySelector("#search-box");
+      console.log(searchBox);
+    </script>
+  </body>
+</html>

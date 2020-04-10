@@ -1,0 +1,154 @@
+@import url("https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap");
+
+body,
+html {
+  padding: 0;
+  margin: 0;
+  height: 100%;
+  background: white;
+  color: #323232;
+  font-family: Lato, sans-serif;
+}
+
+input[type="text"] {
+  padding: 0.5rem 1rem 0.5rem 1rem;
+  border: 1px solid #e0e0e0;
+  color: #323232;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:link {
+  color: #386fa4;
+}
+a.reverse:link {
+  color: white;
+}
+
+a:visited {
+  color: #386fa4;
+}
+a.reverse:visited {
+  color: white;
+}
+
+a:hover {
+  color: #386fa4;
+  text-decoration: underline;
+}
+a.reverse:hover {
+  color: white;
+}
+
+a:active {
+  color: #386fa4;
+}
+a.reverse:active {
+  color: white;
+}
+
+#content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#footer {
+  padding: 1rem;
+  background: #386fa4;
+  color: white;
+  text-align: center;
+}
+
+#top-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+#top-text {
+  text-align: center;
+  padding: 1rem;
+  font-size: 1.25rem;
+  font-weight: 300;
+}
+
+#top-text #title {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+#search-area {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0 1rem 1rem 1rem;
+}
+
+#search-area #info {
+  text-align: center;
+  padding: 1rem;
+  font-size: 1.25rem;
+  font-weight: 300;
+}
+
+#query-form {
+  display: flex;
+}
+
+#search-area #query-form input[type="text"] {
+  width: 40rem;
+  font-size: 1.5rem;
+}
+
+#search-area #query-form input[type="submit"] {
+  display: block;
+  border: none;
+  color: white;
+  background-color: #386fa4;
+  padding: 1rem 2rem;
+  font-size: 1.25rem;
+  cursor: pointer;
+  text-align: center;
+}
+
+.sep-line {
+  height: 1px;
+  width: 100%;
+  background: #ececec;
+}
+
+#results {
+  max-width: 50rem;
+  margin: 1rem auto 1rem;
+  height: 100%;
+  overflow: scroll;
+}
+
+.search-result {
+  display: flex;
+  padding: 1rem;
+}
+
+.search-result-title {
+  font-weight: bold;
+}
+
+.search-result-subtitle {
+  color: #646464;
+}
+
+.search-result-open-url {
+  display: flex;
+  align-items: center;
+  padding-left: 1rem;
+}
+
+.search-result-open-url img {
+  width: 2rem;
+  height: 2rem;
+}
