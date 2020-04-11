@@ -6,11 +6,23 @@
     <script src="{{ url_for('static', filename='main.js') }}"></script>
   </head>
   <body>
+    <div id="cord-body-text-modal" class="modal">
+      <div class="modal-wrapper">
+        <div class="modal-close">&times;</div>
+        <div class="modal-content">
+          <div class="modal-title"></div>
+          <div class="modal-subtitle"></div>
+          <div class="modal-text"></div>
+        </div>
+      </div>
+    </div>
     <div id="content">
       <div id="top-area" class="{{ 'span' if not searching else '' }}">
         <div id="top-text">
           <div id="title">
-            <a class="hidden" href="/">Coordle</a>
+            <a class="hidden" href="/">
+              <img id="coordle-logo" src="{{ url_for('static', filename='coordle-logo.png') }}" />
+            </a>
           </div>
           Search engine for the CORD-19 dataset using word embeddings and TF-IDF
         </div>
@@ -33,17 +45,14 @@
         <template id="template-search-result">
           <div class="search-result">
             <div class="search-result-content">
-              <div class="search-result-title"></div>
+              <a
+                class="search-result-title"
+                rel="noopener noreferrer"
+                target="_blank"
+              ></a>
               <div class="search-result-subtitle"></div>
               <div class="search-result-text-snippet"></div>
             </div>
-            <a
-              rel="noopener noreferrer"
-              target="_blank"
-              class="search-result-open-url"
-            >
-              <img src="{{ url_for('static', filename='open-in-new.svg') }}" />
-            </a>
           </div>
         </template>
       </div>
