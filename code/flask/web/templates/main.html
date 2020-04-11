@@ -34,7 +34,6 @@
               />
             </a>
           </div>
-          {% if not searching %}
           Search engine for the
           <a
             class="hidden"
@@ -44,7 +43,6 @@
             >CORD-19 dataset</a
           >
           using word embeddings and TF-IDF
-          {% endif %}
         </div>
         <div id="search-area">
           {% if not searching %}
@@ -54,7 +52,7 @@
             <input
               type="text"
               name="q"
-              placeholder="i.e: coronavirus symptoms"
+              placeholder="e.g: coronavirus symptoms"
               id="search-box"
             />
             <input type="submit" value="Search" />
