@@ -11,6 +11,8 @@ from copy import deepcopy
 from multiprocessing import Pool
 from tqdm import tqdm
 from os import cpu_count
+from string import punctuation as PUNCTUATION
+import re
 
 class SentVectorDoc:
     '''
@@ -108,6 +110,295 @@ class SentVectorDoc:
         self.wordfreqs = {word:count for word, count in zip(uniques, counts)}
         return self, uniques
 
+
+class RecursiveDescentParser:
+    '''
+    Parser class for Coordle used for parsing queries 
+    and also searching using the parsed queries. 
+
+    Made to parse query tokens contained 
+    in deque objects.
+
+    This class is made to be composed in coordle_backend.Index
+    '''
+    def __init__(self, token_to_set: dict, or_operator: str='OR', 
+                 and_operator: str='AND', difference_operator: str='NOT', 
+                 punctuation: str=None):
+        '''
+        Parameters:
+        ------------
+        sets: a dictionary where keys correspond to query tokens, and values
+              are sets containing SentVectorDoc objects
+        '''
+        self.token_to_set = token_to_set
+        self.n_valid_tokens: int = len(self.token_to_set)
+        
+        self.or_operator = or_operator
+        self.and_operator = and_operator
+        self.difference_operator = difference_operator
+
+        self.operators = {
+            self.or_operator,
+            self.and_operator,
+            self.difference_operator
+        }
+
+        self.punctuation = punctuation
+        if self.punctuation is None:
+            self.punctuation = PUNCTUATION.replace('(','').replace(')','')
+
+    def get_logical_querytokens(self, query: str):
+        query = re.sub(f'[{self.punctuation}]','',query)
+        querytokens = re.split('([^a-zA-Z0-9])', query)
+        # Gotta do this to capture parenthesis
+        querytokens = chain.from_iterable([t.split() for t in querytokens])
+
+        q1 = deque(querytokens)
+        q2 = deque()
+   
+        q2.append(q1.popleft())
+
+        while len(q1) > 0:
+            token = q1.popleft()
+            
+            if q2[-1] == '(' or token == ')':
+                q2.append(token)
+                continue
+            
+            # If preceeding token was operator
+            if q2[-1] in self.operators:
+                q2.append(token)
+            # If preceeding token was not operator
+            else:
+                # If current token is not an operator
+                if token not in self.operators:
+                    q2.append(self.or_operator)
+                q2.append(token)
+        return q2
+
+    def assert_query(self, querytokens: deque, errmsgs: list) -> bool:
+        '''
+        Check if query is properly formatted. Returns True if everything is ok,
+        else False. 
+        '''
+        q = querytokens.copy()
+        p_list = []
+        p_counter = 0 
+        flag = True
+        curr = q.popleft()
+        
+        ##### Initialize by checking the first token #####
+        
+        # Stray closing parenthesis
+        if curr == ')':
+            p_counter -= 1
+            p_list.append(p_counter)
+            flag = False
+        
+        if curr == '(':
+            p_counter += 1
+            p_list.append(p_counter)
+        
+        # If query is starting with an operator
+        if curr in self.operators:
+            errmsgs.append(f'SyntaxError: First token "{curr}" is an operator')
+            flag = False
+        
+        # If querytokens consisted of only a single token
+        if len(q) == 0:
+            if p_counter != 0:
+                errmsgs.append(f'SyntaxError: Stray parenthesis')
+                flag = False
+            return flag
+        ##################################################
+        
+        prev = curr
+        # Runs if more than one token left
+        while len(q) > 0:
+            curr: str = q.popleft()
+            
+            if curr == '(':
+                p_counter += 1
+                p_list.append(p_counter)
+            
+            if curr == ')':
+                p_counter -= 1
+                p_list.append(p_counter)
+            
+            # If curr is operator
+            if curr in self.operators:
+                # Two succeeding operators
+                if prev in self.operators:
+                    errmsgs.append(f'SyntaxError: Two succeeding operators "{prev} {curr}"')
+                    flag = False
+                    
+            prev = curr
+        
+        # Should only be one token left when interpreter is here
+        
+        # If ending with an operator
+        if prev in self.operators:
+            errmsgs.append(f'SyntaxError: Last token "{prev}" is an operator')
+            flag = False
+        
+        ###### Check paranthesis' #####
+        
+        # If unbalanced number of parenthesis'
+        if p_counter > 0:
+            errmsgs.append(f'SyntaxError: Found stray opening parenthesis')
+            flag = False
+            
+        # Check if any negative values in p_list, implies stray closing brackets
+        if any((x < 0 for x in p_list)): 
+            errmsgs.append(f'SyntaxError: Found stray closing parenthesis')
+            flag = False
+        ###############################
+        return flag
+
+    @staticmethod
+    def _get_in_parenthesis(q: deque):
+        '''
+        Expects proper query
+        
+        input should be like:
+        white AND (woman NOT man))
+        i.e. it should miss opening parenthesis
+        
+        returns deque
+        white AND (woman NOT man)
+        '''
+        q_temp = deque()
+        i = 1
+        while i > 0:
+            token = q.popleft()
+            if token == '(':
+                i += 1
+            elif token == ')':
+                i -= 1
+                if i == 0: return q_temp
+                if i < 0: raise ValueError('Bad query')
+            q_temp.append(token)
+
+    def parenthesis_handler(self, querytokens: deque):
+        '''
+        Expects proper query
+        
+        Turns deque
+        retarded OR (white AND (woman NOT man)) 
+        
+        to
+        ['retarded', 'OR', ['white', 'AND', ['woman','NOT','man']]]
+        '''
+        q1 = querytokens.copy()
+        q2 = deque()
+        while len(q1) > 0:
+            token = q1.popleft()
+            if token == '(':
+                q_temp: deque = self._get_in_parenthesis(q1)
+                q2.append(self.parenthesis_handler(q_temp))
+            else:
+                q2.append(token)
+        return q2
+
+    # TODO: Think about edge cases 
+    # TODO: Maybe use a explicit stack implementation instead of implicit 
+    #       to make operator preceedence more modifiable.
+    def search(self, query):
+        # Obtain query tokens
+        querytokens: deque = self.get_logical_querytokens(query)
+
+        # Assert that query is well formatted
+        errmsgs = []
+        if not self.assert_query(querytokens, errmsgs):
+            return None, errmsgs
+
+        # Handle parenthesis 
+        queryqueue = self.parenthesis_handler(querytokens)
+  
+        # Parse queryqueue
+        self.temp = set() # Needed to reset TF-IDF values later
+        results = self.parse(queryqueue)
+
+        results_list = list(results)
+        results_list.sort(key=lambda x: x._tf_idf_score, reverse=True)
+        
+        scores = np.array([result._tf_idf_score for result in results_list])
+        scores = scores/scores.sum()*100
+
+        # Reset _tf_idf_score counter on things in index
+        for result in self.temp:
+            result._tf_idf_score = 0
+
+        return results_list, scores
+    
+    def parse(self, q: deque) -> set:
+        if len(q) == 0:
+            return set()
+        results = self._parse_not(q)
+        return results
+
+    def _parse_not(self, q: deque):
+        results = self._parse_and(q)
+        
+        if len(q) == 0:
+            return results
+
+        curr_token = q[0]
+        if curr_token == self.difference_operator:
+            q.popleft()
+            return results - self._parse_not(q)
+        else:
+            return results
+
+    def _parse_and(self, q: deque) -> Union[set, None]:
+        results = self._parse_or(q)
+        
+        if len(q) == 0:
+            return results
+
+        curr_token = q[0]
+        if curr_token == self.and_operator:
+            q.popleft()
+            return results & self._parse_and(q)
+        else:
+            return results
+
+    def _parse_or(self, q: deque) -> Union[set, None]:
+        results = self._parse_term(q)
+    
+        if len(q) == 0:
+            return results
+        
+        curr_token = q[0]
+        if curr_token == self.or_operator:
+            q.popleft()
+            return results | self._parse_or(q)
+        else:
+            return results
+
+    def _parse_term(self, q: deque) -> Union[set, None]:
+        curr_token = q.popleft()
+
+        if type(curr_token) == deque:
+            return self.parse(curr_token)
+
+        if curr_token in self.token_to_set:
+            results: set = self.token_to_set[curr_token]
+            self.temp.update(results)
+            self._tf_idf(results, curr_token)
+            return results
+        else:
+            return set()
+
+    def _tf_idf(self, docs: set, token: str):
+        '''
+        Given docs, calculate TF-IDF
+        '''
+        for doc in docs:
+            idf = np.log(self.n_valid_tokens / len(docs))
+            tf = doc.wordfreqs[token] / len(doc)
+            doc._tf_idf_score += tf*idf
+
 class Index:
     def __init__(self):
         self.docmap = dict()
@@ -166,7 +457,6 @@ class Index:
             if verbose:
                 print(f'Text cleaning initilized on {workers} workers')
             with Pool(workers) as pool:
-                # texts=pool.map(cleaner, df[text])
                 clean_iterator = tqdm(
                     pool.imap(cleaner, df[text]), 
                     desc='Cleaning texts', 
@@ -245,76 +535,7 @@ class Index:
 
         return results_list, scores
 
-    def _recursive_descent_parser(self, q: deque): 
-        result = self._parse_not(q)
-        return result
 
-    def _parse_not(self, q: deque):
-        results = self._parse_and(q)
-        
-        # Return if results is None, or if token queue is empty
-        if results is None or len(q) == 0:
-            return results
-
-        curr_token = q[0]
-        if curr_token == 'NOT':
-            q.popleft()
-            return results - self._parse_not(q)
-        else:
-            return results
-
-    def _parse_and(self, q: deque) -> Union[set, None]:
-        results = self._parse_or(q)
-        
-        # Return if results is None, or if token queue is empty
-        if results is None or len(q) == 0:
-            return results
-
-        curr_token = q[0]
-        if curr_token == 'AND':
-            q.popleft()
-            return results & self._parse_and(q)
-        else:
-            return results
-
-    def _parse_or(self, q: deque) -> Union[set, None]:
-        results = self._parse_word(q)
-    
-        # Return if results is None, or if token queue is empty
-        if results is None or len(q) == 0:
-            return results
-        
-        curr_token = q[0]
-        if curr_token == 'OR':
-            q.popleft()
-            return results | self._parse_or(q)
-        else:
-            return results
-
-    def _parse_word(self, q: deque) ->Union[set, None]:
-        curr_token = q[0]
-        if curr_token in self.docmap:
-            q.popleft()
-            return self.docmap[curr_token]
-        else:
-            return None
-
-    def _get_query_queue(self, query: list):
-        '''
-        Puts appropriate operators between tokens
-        '''
-        q1 = deque(query)
-        q2 = deque()
-
-    def advanced_search(self, query: Union[str, list], verbose: bool=False):
-        '''
-        thicc
-        '''
-        querytokens = query.split()
-        print(f'Query tokens: {querytokens}')
-        self._get_query_queue(querytokens)
-        queue = deque(querytokens)
-        return self._recursive_descent_parser(queue)
 
 class AI_Index(Index):
     '''
