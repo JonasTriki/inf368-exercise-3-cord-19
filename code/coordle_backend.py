@@ -42,7 +42,6 @@ class CordDoc:
         self.uid = uid
         self.title = title
         self.wordfreqs = dict()
-        self._tf_idf_score: float = 0
 
     def __len__(self):
         '''
@@ -79,7 +78,7 @@ class CordDoc:
     def fit(self, text: str, cleaner: Callable=None, **kwargs) -> tuple:
         '''
         Create sentence vectors for all sentences in given text.
-        (WIP) OUTDATED DOCSTRING!
+        
         Parameters:
         text: Text as string
 
@@ -299,7 +298,16 @@ class RecursiveDescentParser:
                 q2.append(token)
         return q2
 
-    def clean_tokens(self, q: deque):
+    def clean_tokens(self, q: deque, cleaner: Callable = None) -> deque:
+        '''
+        Given a logical query (that is queries with set operators and 
+        parenthesis'), run a text cleaning function on the tokens that are not
+        operators or parenthesis' 
+        '''
+
+        if cleaner is None:
+            cleaner = clean_text
+
         q2 = deque()
         for token in q:
             if token in '()' or token in self.operators:
@@ -315,6 +323,8 @@ class RecursiveDescentParser:
     def _preprocess_query(self, query: str) -> tuple:
         '''
         Preprocesses the query before parsing 
+
+        Returns queryqueue, a deque that contains strings and deques. 
         '''
         querytokens: deque = self.get_logical_querytokens(query)
 
@@ -331,7 +341,16 @@ class RecursiveDescentParser:
 
         return queryqueue, errmsgs
 
+    def __getitem__(self, query: str):
+        '''
+        Implements fancy syntax: coordle['query here']
+        '''
+        return self.search(query)
+
     def search(self, query: Union[str, deque]) -> tuple:
+        '''
+        TODO: Docs
+        '''
         if type(query) == str:
             queryqueue, errmsgs = self._preprocess_query(query)
         elif type(query) == deque:
@@ -344,24 +363,26 @@ class RecursiveDescentParser:
             return None, None, errmsgs
 
         # Parse queryqueue
-        self.temp = set() # Needed to reset TF-IDF values later
+        self.temp = {} # Needed to reset TF-IDF values later
                           # It is used in self._parse_term
 
         results = self.parse(queryqueue)
 
-        results_list = list(results)
-        results_list.sort(key=lambda x: x._tf_idf_score, reverse=True)
-        
-        scores = np.array([result._tf_idf_score for result in results_list])
-        scores = scores/scores.sum()*100
+        results_list = np.array(list(results))
+        scores = np.array([self.temp[doc.uid] for doc in results_list])
 
-        # Reset _tf_idf_score counter on things in index
-        for result in self.temp:
-            result._tf_idf_score = 0
+        sort_idx = np.argsort(scores)[::-1]
+        results_list = results_list[sort_idx]
+        scores = scores[sort_idx]
+
+        scores = scores/scores.sum()*100
 
         return results_list, scores, errmsgs
     
     def parse(self, q: deque) -> set:
+        '''
+        TODO: Docs
+        '''
         if len(q) == 0:
             return set()
 
@@ -369,6 +390,9 @@ class RecursiveDescentParser:
         return results
 
     def _parse_not(self, q: deque) -> set:
+        '''
+        TODO: Docs
+        '''
         results = self._parse_and(q)
         
         if len(q) == 0:
@@ -382,6 +406,9 @@ class RecursiveDescentParser:
             return results
 
     def _parse_and(self, q: deque) -> set:
+        '''
+        TODO: Docs
+        '''
         results = self._parse_or(q)
         
         if len(q) == 0:
@@ -395,6 +422,9 @@ class RecursiveDescentParser:
             return results
 
     def _parse_or(self, q: deque) -> set:
+        '''
+        TODO: Docs
+        '''
         results = self._parse_term(q)
     
         if len(q) == 0:
@@ -408,6 +438,9 @@ class RecursiveDescentParser:
             return results
 
     def _parse_term(self, q: deque) -> set:
+        '''
+        TODO: Docs
+        '''
         curr_token = q.popleft()
 
         # Implies parenthesis in query
@@ -416,7 +449,6 @@ class RecursiveDescentParser:
 
         if curr_token in self.token_to_set:
             results: set = self.token_to_set[curr_token]
-            self.temp.update(results)
             self._tf_idf(results, curr_token)
             return results
         else:
@@ -424,156 +456,32 @@ class RecursiveDescentParser:
 
     def _tf_idf(self, docs: set, token: str):
         '''
-        Given docs, calculate TF-IDF
-        '''
+        Given a set CordDoc objects and a token, calculate TF-IDF relevance for
+        the objects with respect to the token and then store the value inside 
+        the objects. 
+
+        The values should be reset to zero after a search
+        '''    
         for doc in docs:
             idf = np.log(len(self.token_to_set) / len(docs))
             tf = doc.wordfreqs[token] / len(doc)
-            doc._tf_idf_score += tf*idf
+            if doc.uid not in self.temp:
+                self.temp[doc.uid] = 0
+            self.temp[doc.uid] += tf*idf
 
 class Index:
-    def __init__(self):
-        self.docmap = dict()
-        self.uid_docmap = dict()
-
-    def __len__(self):
-        return len(self.docmap)
-    
-    def __getitem__(self, query: str) -> tuple:
-        '''
-        Implements fancy syntax: coordle['query here']
-        '''
-        return self.search(query)
-
-    def add(self, uid: str, title: str, text: Union[str, Iterable]):
-        '''
-        Adds document to index
-
-        Parameters:
-        -------------
-        uid: unique identification string
-
-        title: title of document
-
-        text: text of document
-        '''
-        doc = CordDoc(uid=uid, title=title)
-        doc, unique_tokens = doc.fit(text)
-
-        # Add document to hasmap where keys are uids and values are docs
-        self.uid_docmap[doc.uid] = doc
-
-        # Add document to hashmap where keys are unique tokens, and values
-        # are sets
-        for token in unique_tokens:
-            if token not in self.docmap:
-                self.docmap[token]=set()
-            self.docmap[token].add(doc)   
-
-    def build_from_df(self, df: pd.DataFrame, uid: str, title: str, 
-                      text: str, use_multiprocessing: bool=False, 
-                      workers: int=1, verbose: bool=True, 
-                      cleaner: Callable=None):
-        '''
-        Build index given pd.DataFrame
-        '''
-        if cleaner is None:
-            cleaner = clean_text
-
-        tqdm_args = {'total':len(df), 'position':0, 'disable':not verbose}
-
-        if use_multiprocessing:
-            if workers == -1:
-                workers = cpu_count()
-
-            if verbose:
-                print(f'Text cleaning initilized on {workers} workers')
-            with Pool(workers) as pool:
-                clean_iterator = tqdm(
-                    pool.imap(cleaner, df[text]), 
-                    desc='Cleaning texts', 
-                    **tqdm_args    
-                )
-                texts=list(clean_iterator)
-        else:
-            texts = df[text]
-        
-        uids = df[uid]
-        titles = df[title]
-
-        for uid_, title_, text_ in tqdm(zip(uids, titles, texts), 
-                                        desc='Adding to index', **tqdm_args):
-            self.add(uid_, title_, text_)
-
-    def get_doc(self, uid: str):
-        '''
-        Get document given uid
-        '''
-        return self.uid_docmap[uid]
-
-    def _tf_idf(self, result: set, token: str):
-        '''
-        Given results, calculate TF-IDF
-        '''
-        for doc in result:
-            idf = np.log(len(self.docmap) / len(result))
-            tf = doc.wordfreqs[token] / len(doc)
-            doc._tf_idf_score += tf*idf
-
-    def search(self, query: Union[str, list], verbose=False) -> tuple:
-        '''
-        Returns a list of query results given
-        query as string or list of strings, also returns tf-idf scores
-        '''
-        if type(query) == str:
-            querytokens: list = clean_text(query)
-        elif type(query) == list:
-            querytokens: list = query
-        else:
-            raise ValueError(f'query must be of type string or list, got {type(query)}')
-
-        if len(querytokens) == 0:
-            return [], []
-
-        results = set()
-
-        if verbose: print('Query tokens: ', querytokens)
-        init_token = querytokens.pop(0)
-        if init_token in self.docmap:
-            results |= self.docmap[init_token]
-
-        for token in querytokens:
-            if token in self.docmap:
-                result: set = self.docmap[token]
-                # Calculates tf_idf and saves them in object attributes
-                # hence no return value
-                self._tf_idf(result, token)
-                # Update with union
-                results |= result
-        
-        if results is None:
-            if verbose: print('No results')
-            return [], []
-
-        results_list = list(results)
-        results_list.sort(key=lambda x: x._tf_idf_score, reverse=True)
-        
-        scores = np.array([result._tf_idf_score for result in results_list])
-        scores = scores/scores.sum()*100
-
-        # Reset _tf_idf_score counter on things in index
-        for result in results_list:
-            result._tf_idf_score = 0
-
-        return results_list, scores
-
-class Index2:
+    '''
+    Index object for Cord data
+    '''
     def __init__(self):
         self.docmap = dict()
         self.uid_docmap = dict()
         self.rdp = RecursiveDescentParser(self.docmap)
 
     def __len__(self):
+        '''
+        Implements polymorphism for len function
+        '''
         return len(self.docmap)
     
     def __getitem__(self, query: str) -> tuple:
@@ -606,13 +514,30 @@ class Index2:
             if token not in self.docmap:
                 self.docmap[token]=set()
             self.docmap[token].add(doc)
-
+    
     def build_from_df(self, df: pd.DataFrame, uid: str, title: str, 
                       text: str, use_multiprocessing: bool=False, 
                       workers: int=1, verbose: bool=True, 
                       cleaner: Callable=None):
         '''
-        Build index given pd.DataFrame
+        Build index given df, a pd.DataFrame. 
+
+        Parameters
+        -----------
+        df: pd.DataFrame at least containing separate columns for uid (unique 
+            id), title and text. 
+        
+        uid: name of uid column
+
+        title: name of title column
+
+        text: name of text column
+
+        use_multiprocessing: Optional, if True (False by default) it will 
+                             preprocess text using threads. 
+
+        workers: Optional, specifies number of workers to use if 
+                 use_multiprocessing is True.
         '''
         if cleaner is None:
             cleaner = clean_text
@@ -620,6 +545,7 @@ class Index2:
         tqdm_args = {'total':len(df), 'position':0, 'disable':not verbose}
 
         if use_multiprocessing:
+            # Clean texts on multiple cores
             if workers == -1:
                 workers = cpu_count()
 
@@ -655,7 +581,6 @@ class Index2:
         '''
         return self.rdp.search(query)
 
-
 class AI_Index(Index):
     '''
     Essentially, uses TF-IDF, but adds similar query tokens 
@@ -666,56 +591,10 @@ class AI_Index(Index):
         self.most_similar = most_similar
         self.n_similars = n_similars
     
-    def _append_most_similar_tokens(self, tokens: list):
-        '''
-        Given a list of tokens, for each token in tokens, append the 
-        most similar 
-        '''
-        for token in reversed(tokens):
-            similars = [word for word, _ in \
-                self.most_similar(token)[:self.n_similars]]
-            tokens.extend(similars)    
-    
-    def _get_query_tokens(self, query: Union[str, list]):
-        '''
-        Assert query type, and do appropriate preprocessing
-        '''
-        if type(query) == str:
-            querytokens = clean_text(query)
-        elif type(query) == list:
-            querytokens = query
-        else:
-            raise ValueError(
-                f'query must be of type string or list, got {type(query)}')
-        return querytokens
-
-    def search(self, query: Union[str, list], verbose=False):
-        '''
-        Given a query, obtain query tokens by using clean_text(query).
-        Then for each query token, get the top n most similar tokens and
-        append them to the query. Then do regular search and score relevance
-        with TF-IDF.
-
-        Pros: Easy integration with the regular index, relevance scoring 
-              becomes trivial. Very reasonable thing to do IMO. 
-
-        Cons: Not that ambitious maybe? 
-        '''
-        querytokens = self._get_query_tokens(query)
-        self._append_most_similar_tokens(querytokens) # In place
-        return super().search(querytokens, verbose)
-
-class AI_Index2(Index2):
-    '''
-    Essentially, uses TF-IDF, but adds similar query tokens 
-    to given query using AI, Big Data and Machine Learning $$$
-    '''
-    def __init__(self, most_similar: Callable, n_similars: int=3):
-        super().__init__()
-        self.most_similar = most_similar
-        self.n_similars = n_similars
-    
     def _similar_adder(self, q: deque, token: str):
+        '''
+        Appends similar words to given token to queue  
+        '''
         try:
             similars = [word for word, _ in \
                         self.most_similar(token)[:self.n_similars]]
@@ -757,7 +636,7 @@ class AI_Index2(Index2):
 
         return q2
 
-    def _preprocess_query(self, query: str) -> tuple:
+    def _preprocess_query_with_ai(self, query: str) -> tuple:
         '''
         Preprocesses the query before parsing 
         '''
@@ -781,7 +660,11 @@ class AI_Index2(Index2):
         return queryqueue, errmsgs
     
     def search(self, query: str) -> tuple:
-        queryqueue, errmsgs = self._preprocess_query(query)
+        '''
+        Returns a list of query results given
+        query as string or list of strings, also returns tf-idf scores
+        '''
+        queryqueue, errmsgs = self._preprocess_query_with_ai(query)
 
         if queryqueue is None:
             # Should always be error message if anything is wron with query

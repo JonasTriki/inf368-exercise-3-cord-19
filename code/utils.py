@@ -150,7 +150,8 @@ def tokenize_texts(texts: np.ndarray, max_vocab_size: int):
         max_vocab_size: Maximum vocabulary size. Used to limit the number of words when creating data
     
     Returns:
-        (data, word_to_idx, idx_to_word): Tuple with tokenized text data, mapping from word to index and mapping to index to word
+        (data, word_to_idx, idx_to_word): Tuple with tokenized text data, 
+        mapping from word to index and mapping to index to word
     '''
     # Tokenize the texts
     print('Tokenizing texts...')
