@@ -1,0 +1,6 @@
+Epoch #1, loss: 0.0
+Epoch #2, loss: 0.0
+Epoch #3, loss: 0.0
+Epoch #4, loss: 0.0
+Epoch #5, loss: 0.0
+Epoch #6, loss: 0.0

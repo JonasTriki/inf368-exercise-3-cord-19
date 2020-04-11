@@ -14,9 +14,9 @@ from os import cpu_count
 from string import punctuation as PUNCTUATION
 import re
 
-class SentVectorDoc:
+class CordDoc:
     '''
-    Class for documents.
+    Class for cord documents.
     '''
     def __init__(self, uid: str, title: str=None):
         '''
@@ -60,13 +60,13 @@ class SentVectorDoc:
 
     def __hash__(self):
         '''
-        SentVectorDoc objects are identified by uid
+        CordDoc objects are identified by uid
         '''
         return hash(self.uid)
 
     def __eq__(self, other):
         '''
-        SentVectorDoc objects are identified by uid
+        CordDoc objects are identified by uid
         '''
         return self.uid == other.uid
     
@@ -116,7 +116,7 @@ class RecursiveDescentParser:
     Parser class for Coordle used for parsing queries 
     and also searching using the parsed queries. 
 
-    Made to parse query tokens contained 
+    Made to parse query tokens contained
     in deque objects.
 
     This class is made to be composed in coordle_backend.Index
@@ -128,10 +128,9 @@ class RecursiveDescentParser:
         Parameters:
         ------------
         sets: a dictionary where keys correspond to query tokens, and values
-              are sets containing SentVectorDoc objects
+              are sets containing CordDoc objects
         '''
         self.token_to_set = token_to_set
-        self.n_valid_tokens: int = len(self.token_to_set)
         
         self.or_operator = or_operator
         self.and_operator = and_operator
@@ -300,11 +299,23 @@ class RecursiveDescentParser:
                 q2.append(token)
         return q2
 
+    def clean_tokens(self, q: deque):
+        q2 = deque()
+        for token in q:
+            if token in '()' or token in self.operators:
+                q2.append(token)
+            else:
+                q2.append(clean_text(token, return_list=False))
+        return q2
+
     # TODO: Think about edge cases 
     # TODO: Maybe use a explicit stack implementation instead of implicit 
     #       to make operator preceedence more modifiable.
-    def search(self, query):
-        # Obtain query tokens
+
+    def _preprocess_query(self, query: str) -> tuple:
+        '''
+        Preprocesses the query before parsing 
+        '''
         querytokens: deque = self.get_logical_querytokens(query)
 
         # Assert that query is well formatted
@@ -312,11 +323,30 @@ class RecursiveDescentParser:
         if not self.assert_query(querytokens, errmsgs):
             return None, errmsgs
 
+        # "Preprocess tokens" by cleaning tokens that are terms (words)
+        querytokens = self.clean_tokens(querytokens)
+
         # Handle parenthesis 
         queryqueue = self.parenthesis_handler(querytokens)
-  
+
+        return queryqueue, errmsgs
+
+    def search(self, query: Union[str, deque]) -> tuple:
+        if type(query) == str:
+            queryqueue, errmsgs = self._preprocess_query(query)
+        elif type(query) == deque:
+            queryqueue, errmsgs = query, []
+        else:
+            raise ValueError(f'Got unsupported type for query, got {type(deque)}')
+
+        # If invalid query
+        if queryqueue is None:
+            return None, None, errmsgs
+
         # Parse queryqueue
         self.temp = set() # Needed to reset TF-IDF values later
+                          # It is used in self._parse_term
+
         results = self.parse(queryqueue)
 
         results_list = list(results)
@@ -329,15 +359,16 @@ class RecursiveDescentParser:
         for result in self.temp:
             result._tf_idf_score = 0
 
-        return results_list, scores
+        return results_list, scores, errmsgs
     
     def parse(self, q: deque) -> set:
         if len(q) == 0:
             return set()
+
         results = self._parse_not(q)
         return results
 
-    def _parse_not(self, q: deque):
+    def _parse_not(self, q: deque) -> set:
         results = self._parse_and(q)
         
         if len(q) == 0:
@@ -350,7 +381,7 @@ class RecursiveDescentParser:
         else:
             return results
 
-    def _parse_and(self, q: deque) -> Union[set, None]:
+    def _parse_and(self, q: deque) -> set:
         results = self._parse_or(q)
         
         if len(q) == 0:
@@ -363,7 +394,7 @@ class RecursiveDescentParser:
         else:
             return results
 
-    def _parse_or(self, q: deque) -> Union[set, None]:
+    def _parse_or(self, q: deque) -> set:
         results = self._parse_term(q)
     
         if len(q) == 0:
@@ -376,9 +407,10 @@ class RecursiveDescentParser:
         else:
             return results
 
-    def _parse_term(self, q: deque) -> Union[set, None]:
+    def _parse_term(self, q: deque) -> set:
         curr_token = q.popleft()
 
+        # Implies parenthesis in query
         if type(curr_token) == deque:
             return self.parse(curr_token)
 
@@ -395,7 +427,7 @@ class RecursiveDescentParser:
         Given docs, calculate TF-IDF
         '''
         for doc in docs:
-            idf = np.log(self.n_valid_tokens / len(docs))
+            idf = np.log(len(self.token_to_set) / len(docs))
             tf = doc.wordfreqs[token] / len(doc)
             doc._tf_idf_score += tf*idf
 
@@ -425,7 +457,7 @@ class Index:
 
         text: text of document
         '''
-        doc = SentVectorDoc(uid=uid, title=title)
+        doc = CordDoc(uid=uid, title=title)
         doc, unique_tokens = doc.fit(text)
 
         # Add document to hasmap where keys are uids and values are docs
@@ -535,6 +567,93 @@ class Index:
 
         return results_list, scores
 
+class Index2:
+    def __init__(self):
+        self.docmap = dict()
+        self.uid_docmap = dict()
+        self.rdp = RecursiveDescentParser(self.docmap)
+
+    def __len__(self):
+        return len(self.docmap)
+    
+    def __getitem__(self, query: str) -> tuple:
+        '''
+        Implements fancy syntax: coordle['query here']
+        '''
+        return self.search(query)
+
+    def add(self, uid: str, title: str, text: Union[str, Iterable]):
+        '''
+        Adds document to index
+
+        Parameters:
+        -------------
+        uid: unique identification string
+
+        title: title of document
+
+        text: text of document
+        '''
+        doc = CordDoc(uid=uid, title=title)
+        doc, unique_tokens = doc.fit(text)
+
+        # Add document to hasmap where keys are uids and values are docs
+        self.uid_docmap[doc.uid] = doc
+
+        # Add document to hashmap where keys are unique tokens, and values
+        # are sets
+        for token in unique_tokens:
+            if token not in self.docmap:
+                self.docmap[token]=set()
+            self.docmap[token].add(doc)
+
+    def build_from_df(self, df: pd.DataFrame, uid: str, title: str, 
+                      text: str, use_multiprocessing: bool=False, 
+                      workers: int=1, verbose: bool=True, 
+                      cleaner: Callable=None):
+        '''
+        Build index given pd.DataFrame
+        '''
+        if cleaner is None:
+            cleaner = clean_text
+
+        tqdm_args = {'total':len(df), 'position':0, 'disable':not verbose}
+
+        if use_multiprocessing:
+            if workers == -1:
+                workers = cpu_count()
+
+            if verbose:
+                print(f'Text cleaning initilized on {workers} workers')
+            with Pool(workers) as pool:
+                clean_iterator = tqdm(
+                    pool.imap(cleaner, df[text]), 
+                    desc='Cleaning texts', 
+                    **tqdm_args    
+                )
+                texts=list(clean_iterator)
+        else:
+            texts = df[text]
+        
+        uids = df[uid]
+        titles = df[title]
+
+        for uid_, title_, text_ in tqdm(zip(uids, titles, texts), 
+                                        desc='Adding to index', **tqdm_args):
+            self.add(uid_, title_, text_)
+
+    def get_doc(self, uid: str):
+        '''
+        Get document given uid
+        '''
+        return self.uid_docmap[uid]
+
+    def search(self, query: Union[str, list], verbose=False) -> tuple:
+        '''
+        Returns a list of query results given
+        query as string or list of strings, also returns tf-idf scores
+        '''
+        return self.rdp.search(query)
 
 
 class AI_Index(Index):
@@ -585,4 +704,93 @@ class AI_Index(Index):
         querytokens = self._get_query_tokens(query)
         self._append_most_similar_tokens(querytokens) # In place
         return super().search(querytokens, verbose)
+
+class AI_Index2(Index2):
+    '''
+    Essentially, uses TF-IDF, but adds similar query tokens 
+    to given query using AI, Big Data and Machine Learning $$$
+    '''
+    def __init__(self, most_similar: Callable, n_similars: int=3):
+        super().__init__()
+        self.most_similar = most_similar
+        self.n_similars = n_similars
     
+    def _similar_adder(self, q: deque, token: str):
+        try:
+            similars = [word for word, _ in \
+                        self.most_similar(token)[:self.n_similars]]
+
+            for word in similars:
+                q.append(self.rdp.or_operator)
+                q.append(word)
+        except KeyError:
+            pass
+
+    def _add_most_similar_tokens(self, q: deque):
+        '''
+        Assumes proper query 
+
+        Given a list of tokens, for each token in tokens, append the 
+        most similar 
+        '''
+
+        q1 = q.copy()
+        q2 = deque()
+
+        # Initialize by checking first element
+        token = q1.popleft()
+        q2.append(token)
+
+        if not (token in '()' or token in self.rdp.operators):
+            self._similar_adder(q2, token)
+
+        for token in q1:
+            q2.append(token)
+            if token in '()' or token in self.rdp.operators:
+                continue
+
+            # Dont add extra tokens if NOT operator
+            if q2[-2] == self.rdp.difference_operator:
+                continue
+
+            self._similar_adder(q2, token)
+
+        return q2
+
+    def _preprocess_query(self, query: str) -> tuple:
+        '''
+        Preprocesses the query before parsing 
+        '''
+        querytokens: deque = self.rdp.get_logical_querytokens(query)
+
+        # Assert that query is well formatted
+        errmsgs = []
+        if not self.rdp.assert_query(querytokens, errmsgs):
+            return None, errmsgs
+
+        # "Preprocess tokens" by cleaning tokens that are terms (words)
+        querytokens = self.rdp.clean_tokens(querytokens)
+
+        # This is the "AI" part. This will return querytokens that has gotten
+        # appended similar tokens to the already existing tokens 
+        querytokens = self._add_most_similar_tokens(querytokens)
+
+        # Handle parenthesis 
+        queryqueue = self.rdp.parenthesis_handler(querytokens)
+
+        return queryqueue, errmsgs
+    
+    def search(self, query: str) -> tuple:
+        queryqueue, errmsgs = self._preprocess_query(query)
+
+        if queryqueue is None:
+            # Should always be error message if anything is wron with query
+            assert len(errmsgs) > 0  
+            return None, None, errmsgs
+
+        return self.rdp.search(queryqueue)
+        
+        
+
+        
+
