@@ -119,11 +119,15 @@ a.hidden:active {
 
 #query-form {
   display: flex;
+  width: 100%;
+  justify-content: center;
 }
 
 #search-area #query-form input[type="text"] {
-  width: 40rem;
+  max-width: 40rem;
+  min-width: 5rem;
   font-size: 1.5rem;
+  flex: 1;
 }
 
 #search-area #query-form input[type="submit"] {
