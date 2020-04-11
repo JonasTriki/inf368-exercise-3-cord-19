@@ -49,7 +49,6 @@ a.reverse:hover {
 }
 a.hidden:hover {
   color: #323232;
-  text-decoration: none;
 }
 
 a:active {

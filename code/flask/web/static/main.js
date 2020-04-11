@@ -97,21 +97,23 @@ window.onload = function () {
   }, true);
 
   // Load more button onclick event
-  btnLoadMore.addEventListener("click", function () {
-    fetch(
-      `/search?q=${query}&start=${num_results}&stop=${
-        num_results + num_per_load
-      }`,
-      { method: "POST" }
-    )
-      .then((res) => res.json())
-      .then((json) => {
-        // Add results and set "Load more" button visibility
-        add_results(json.results, tpSearchResult, divResults, bodyTextModal);
-        num_results += json.results.length;
-        load_more_visibility(btnLoadMore, json.total_results == num_results);
-        num_per_load = json.num_per_load;
-      })
-      .catch((err) => console.log("Error while loading more: ", err));
-  });
+  if (btnLoadMore !== null) {
+    btnLoadMore.addEventListener("click", function () {
+      fetch(
+        `/search?q=${query}&start=${num_results}&stop=${
+          num_results + num_per_load
+        }`,
+        { method: "POST" }
+      )
+        .then((res) => res.json())
+        .then((json) => {
+          // Add results and set "Load more" button visibility
+          add_results(json.results, tpSearchResult, divResults, bodyTextModal);
+          num_results += json.results.length;
+          load_more_visibility(btnLoadMore, json.total_results == num_results);
+          num_per_load = json.num_per_load;
+        })
+        .catch((err) => console.log("Error while loading more: ", err));
+    });
+  }
 };
