@@ -15,7 +15,7 @@ from nltk.corpus import stopwords as _stopwords
 from gensim.models import Word2Vec
 from os.path import join as join_path
 from gensim.models.callbacks import CallbackAny2Vec
-from coordle_backend import SentVectorDoc, Index
+from coordle_backend import CordDoc, Index
 import sys 
 from time import time 
 
