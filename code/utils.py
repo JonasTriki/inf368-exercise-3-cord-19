@@ -18,6 +18,9 @@ from tqdm.notebook import tqdm
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import skipgrams, make_sampling_table
 from tensorflow.keras.utils import to_categorical, Sequence
+import nltk
+nltk.download('wordnet')
+nltk.download('stopwords')
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet as wn
 from gensim.models.callbacks import CallbackAny2Vec

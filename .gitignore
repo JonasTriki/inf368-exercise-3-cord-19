@@ -244,6 +244,7 @@ dmypy.json
 # Generated/downloaded files
 code/data/raw
 code/data/cord-19-data.csv
+code/flask/web/static/cord-19*
 code/kaggle.json
 code/models*
 *.p
