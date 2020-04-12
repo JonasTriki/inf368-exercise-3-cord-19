@@ -18,6 +18,9 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import skipgrams, make_sampling_table
 from tensorflow.keras.utils import to_categorical, Sequence
 from nltk.stem import WordNetLemmatizer 
+# Needs this to work f
+from nltk.corpus import wordnet as wn
+next(wn.words())
 
 def set_kaggle_env_keys(kaggle_path: str = 'kaggle.json') -> None:
     '''Sets environment keys required by the KaggleApi

@@ -17,19 +17,6 @@ from pymongo import MongoClient
 from mongoengine import (connect, Document, StringField, IntField, MapField, 
                          ListField)
 
-connect('coordle')
-
-class DocWordCounts(Document):
-    uid = StringField(required=True, primary_key=True)
-    wordcounts = MapField(field=IntField(), required=True)
-    title = StringField(field=str, required=False)
-
-
-class WordToDoc(Document):
-    word = StringField(required=True, primary_key=True)
-    uids = ListField(field=StringField(), required=True)
-    meta = {'indexes': ['#word']}
-
 class CordDoc:
     '''
     Class for cord documents.
@@ -505,102 +492,6 @@ class Index:
         Implements fancy syntax: coordle['query here']
         '''
         return self.search(query)
-    
-    def add2(self, uid: str, title: str, text: Union[str, Iterable]):    
-        # Make wordcounts
-        unique_words, counts = np.unique(text, return_counts=True)
-        
-        count_db = DocWordCounts(uid=uid)
-        
-        for word, count in zip(unique_words, counts):
-            # Store wordcounts
-            count_db.wordcounts[word] = count
-            count_db.title = title
-        
-            # Update WordToDoc database
-            # temp = WordToDoc.objects(word=word)
-            # if not temp:
-            #     # If db did not contain the word
-            #     temp = WordToDoc(word=word)
-            # else:
-            #     # Unpack
-            #     temp = temp[0]
-            # temp.uids.append(uid)
-            # temp.save()
-
-            if word not in self.docmap:
-                self.docmap[word]=set()
-            self.docmap[word].add(uid)
-
-        count_db.save()
-
-    def build_from_df2(self, df: pd.DataFrame, uid: str, title: str, 
-                      text: str, use_multiprocessing: bool=False, 
-                      workers: int=1, verbose: bool=True, 
-                      cleaner: Callable=None):
-        '''
-        Build index given df, a pd.DataFrame. 
-
-        Parameters
-        -----------
-        df: pd.DataFrame at least containing separate columns for uid (unique 
-            id), title and text. 
-        
-        uid: name of uid column
-
-        title: name of title column
-
-        text: name of text column
-
-        use_multiprocessing: Optional, if True (False by default) it will 
-                             preprocess text using threads. 
-
-        workers: Optional, specifies number of workers to use if 
-                 use_multiprocessing is True.
-        '''
-        if cleaner is None:
-            cleaner = clean_text
-
-        tqdm_kwargs = {'position':0, 'disable':not verbose}
-
-        # Clean texts on multiple cores
-        if workers == -1:
-            workers = cpu_count()
-
-        if verbose:
-            print(f'Text cleaning initilized on {workers} workers')
-
-        with Pool(workers) as pool:
-            clean_iterator = tqdm(
-                pool.imap(cleaner, df[text]),
-                desc='Cleaning texts', total=len(df),
-                **tqdm_kwargs
-            )
-            texts=list(clean_iterator)
-        
-        uids = df[uid]
-        titles = df[title]
-
-        DocWordCounts.objects.delete()
-        WordToDoc.objects.delete()
-
-        for uid_, title_, text_ in tqdm(zip(uids, titles, texts), total=len(df),
-                                        desc='Adding to index', **tqdm_kwargs):
-            self.add2(uid_, title_, text_)
-
-
-        def addy(items):
-            for word, uids in items:
-                if len(word) < 500:
-                    pass
-                    
-
-        for word, uids in tqdm(self.docmap.items(), desc='Adding to DB',
-                               total=len(self.docmap), **tqdm_kwargs):
-            if len(word) < 500:
-                temp = WordToDoc(word=word)
-                temp.uids.extend(list(uids))
-                temp.save()
 
     def add(self, uid: str, title: str, text: Union[str, Iterable]):
         '''
@@ -638,7 +529,7 @@ class Index:
         Parameters
         -----------
         df: pd.DataFrame at least containing separate columns for uid (unique 
-            id), title and text. 
+            id), title and text.
         
         uid: name of uid column
 
@@ -666,9 +557,9 @@ class Index:
                 print(f'Text cleaning initilized on {workers} workers')
             with Pool(workers) as pool:
                 clean_iterator = tqdm(
-                    pool.imap(cleaner, df[text]), 
-                    desc='Cleaning texts', 
-                    **tqdm_args    
+                    pool.imap(cleaner, df[text]),
+                    desc='Cleaning texts',
+                    **tqdm_args
                 )
                 texts=list(clean_iterator)
         else:
@@ -680,6 +571,12 @@ class Index:
         for uid_, title_, text_ in tqdm(zip(uids, titles, texts), 
                                         desc='Adding to index', **tqdm_args):
             self.add(uid_, title_, text_)
+
+    def extend_with_df(self, df: pd.DataFrame, uid: str, title: str, 
+                       text: str, use_multiprocessing: bool=False, 
+                       workers: int=1, verbose: bool=True, 
+                       cleaner: Callable=None):
+        '''Heh'''
 
     def get_doc(self, uid: str):
         '''
