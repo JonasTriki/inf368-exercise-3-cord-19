@@ -150,6 +150,11 @@ a.hidden:active {
   margin: 1rem auto 1rem;
 }
 
+#no-results {
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
 .search-result {
   max-width: 50rem;
   display: flex;

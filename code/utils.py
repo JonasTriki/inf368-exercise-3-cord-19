@@ -2,6 +2,7 @@
 This module contains general use utility functions
 '''
 import os
+from os.path import join as join_path
 import json
 import re 
 from string import punctuation as PUNCTUATION
@@ -17,7 +18,10 @@ from tqdm.notebook import tqdm
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import skipgrams, make_sampling_table
 from tensorflow.keras.utils import to_categorical, Sequence
-from nltk.stem import WordNetLemmatizer 
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet as wn
+from gensim.models.callbacks import CallbackAny2Vec
+next(wn.words())
 
 def set_kaggle_env_keys(kaggle_path: str = 'kaggle.json') -> None:
     '''Sets environment keys required by the KaggleApi
@@ -288,3 +292,30 @@ class TokenizedSkipgramDataGenerator(Sequence):
         # [None] value fixes the following error (assuming tf version < 2.2):
         # https://stackoverflow.com/questions/59317919/warningtensorflowsample-weight-modes-were-coerced-from-to
         return list(X_batch), y_batch, [None]
+
+def fix_authors(authors: str, authors_sep: str = ';', name_sep: str = ','):
+    '''
+    TODO: Docs
+    '''
+    authors_split = authors.split(authors_sep)
+    if len(authors_split) > 2:
+
+        # Use first authors last name + et al.
+        return f'{authors_split[0].split(name_sep)[0]} et al.'
+    else:
+        
+        # Separate authors using comma (,)
+        return ', '.join(authors_split)
+
+class EpochSaver(CallbackAny2Vec):
+    '''Callback to save model after each epoch.'''
+
+    def __init__(self, output_dir: str, prefix: str, start_epoch: int = 1):
+        self.output_dir = output_dir
+        self.prefix = prefix
+        self.epoch = start_epoch
+
+    def on_epoch_end(self, model):
+        output_path = join_path(self.output_dir, f'{self.prefix}_epoch_{self.epoch}.model')
+        model.save(output_path)
+        self.epoch += 1
