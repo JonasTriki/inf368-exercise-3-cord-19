@@ -242,10 +242,9 @@ dmypy.json
 .pyre/
 
 # Generated/downloaded files
-code/data
+code/data/raw
 code/kaggle.json
-*.npy
+code/models*
 *.p
-*.model
 .DS_Store
 code/flask/coordle-env
