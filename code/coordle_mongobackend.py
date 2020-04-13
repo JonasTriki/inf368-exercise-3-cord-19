@@ -1,3 +1,22 @@
+'''
+This module contains the backend for Coordle.
+
+Classes:
+    CordDoc: a class to represent a document, contains uid, title and a 
+    dictionary that maps words to integers. The integers denote the count of 
+    the word in the text. 
+
+    RecursiveDescentParser: A class that is to be composed in the index. This
+    class contains everything to parse a query and obtain results. 
+
+    Index: The index class that is meant to be used by the user. This contains
+    methods to build the index. The index in this module will be stored in 
+    a Mongo database
+
+    AI_Index: Subclasses Index, almost same API as Index, requires a function
+    that takes in a word token and return a list of similar word tokens. 
+'''
+
 import numpy as np
 import pandas as pd
 from utils import clean_text
@@ -14,8 +33,7 @@ from os import cpu_count
 from string import punctuation as PUNCTUATION
 import re
 from pymongo import MongoClient, collection
-
-# TODO: Return suggestions so website can highlight
+import sys
 
 class RecursiveDescentParser:
     '''
@@ -54,7 +72,10 @@ class RecursiveDescentParser:
         self.wordcounts = index.wordcounts
         self.index = index
 
-    def get_logical_querytokens(self, query: str):
+    def get_logical_querytokens(self, query: str) -> deque:
+        '''
+        Parses query with grammar, e.g. dog cow NOT (mouse AND cat)
+        '''
         query = re.sub(f'[{self.punctuation}]','',query)
         querytokens = re.split('([^a-zA-Z0-9])', query)
         # Gotta do this to capture parenthesis
@@ -266,6 +287,7 @@ class RecursiveDescentParser:
         if queryqueue is None:
             return None, None, errmsgs
 
+        print(queryqueue)
         # Parse queryqueue
         
         # uids as keys and lists of [score, len, wordcounts] as values
@@ -288,19 +310,22 @@ class RecursiveDescentParser:
 
     def parse(self, q: deque) -> set:
         '''
-        TODO: Docs
+        Given a queryque e.g.
+        deque(['cat', 'OR', deque(['pig','AND','duck']), 'OR', 'horse])
+        Parse the thing and return appropriate uids in a set. 
         '''
         if len(q) == 0:
             return set()
 
-        results = self._parse_not(q)
+        results = self._parse_difference(q)
         return results
 
-    def _parse_not(self, q: deque) -> set:
+    def _parse_difference(self, q: deque) -> set:
         '''
-        TODO: Docs
+        Checks for difference operator ('NOT' by default), this
+        operator has lowest preceedence
         '''
-        results = self._parse_and(q)
+        results = self._parse_intersection(q)
 
         if len(q) == 0:
             return results
@@ -308,15 +333,16 @@ class RecursiveDescentParser:
         curr_token = q[0]
         if curr_token == self.difference_operator:
             q.popleft()
-            return results - self._parse_not(q)
+            return results - self._parse_difference(q)
         else:
             return results
 
-    def _parse_and(self, q: deque) -> set:
+    def _parse_intersection(self, q: deque) -> set:
         '''
-        TODO: Docs
+        Checks for intersection operator ('AND' by default), this
+        operator has higher preceedence that the difference operator 
         '''
-        results = self._parse_or(q)
+        results = self._parse_union(q)
 
         if len(q) == 0:
             return results
@@ -324,13 +350,14 @@ class RecursiveDescentParser:
         curr_token = q[0]
         if curr_token == self.and_operator:
             q.popleft()
-            return results & self._parse_and(q)
+            return results & self._parse_intersection(q)
         else:
             return results
 
-    def _parse_or(self, q: deque) -> set:
+    def _parse_union(self, q: deque) -> set:
         '''
-        TODO: Docs
+        Checks for intersection operator ('OR' by default), this
+        operator has highest preceedence. 
         '''
         results = self._parse_term(q)
 
@@ -340,13 +367,13 @@ class RecursiveDescentParser:
         curr_token = q[0]
         if curr_token == self.or_operator:
             q.popleft()
-            return results | self._parse_or(q)
+            return results | self._parse_union(q)
         else:
             return results
 
     def _parse_term(self, q: deque) -> set:
         '''
-        TODO: Docs
+        Checks for term, this is the function that fetches the uids
         '''
         curr_token = q.popleft()
 
@@ -354,16 +381,16 @@ class RecursiveDescentParser:
         if type(curr_token) == deque:
             return self.parse(curr_token)
 
-        # print(self.tokencache)
-        if curr_token in self.tokencache:
-            db_results = self.tokencache[curr_token]
-        else:
+        # Obtain uid set for cache if it is there, else it fetches from database
+        # and caches it beforehand
+        if curr_token not in self.tokencache:
             db_results = self.word2uids.find_one({'_id':curr_token})
             # Database returns None if word not found
             if db_results is not None:
                 # Dict keys behave like sets
                 db_results = db_results['uids'].keys()
-            self.tokencache[curr_token] = db_results
+
+        self.tokencache[curr_token] = db_results
 
         if db_results is None:
             return set()
@@ -389,34 +416,36 @@ class RecursiveDescentParser:
             idf = np.log(len(self.index) / len(docs))
             tf = item[2][token] / item[1]
             item[0] += tf*idf
-        print(len(docs))
 
 class Index:
     '''
     Index object for Cord data
     '''
-    def __init__(self, db: str, host=None, port: int=None, 
+    def __init__(self, db: str, host: str=None, port: int=None, 
                  maxPoolSize: int=1000000, wordcounts: str='wordcounts',
-                 word2uids: str='word2uids', drop_old_collections: bool=False):
-
+                 word2uids: str='word2uids'):
         self.mongoclient = MongoClient(host=host, port=port,
                                        maxPoolSize=maxPoolSize)
         self.db = self.mongoclient[db]
         
-        if drop_old_collections:
-            if wordcounts in self.db.list_collection_names():
-                self.db[wordcounts].drop()
-            if word2uids in self.db.list_collection_names():
-                self.db[word2uids].drop()
-
         self.wordcounts: collection = self.db[wordcounts]
         self.word2uids: collection = self.db[word2uids]
 
         self.rdp = RecursiveDescentParser(self)
-        self.len = 0
 
-    def load_attributes_from_db(self):
-        pass
+        self._load_attributes_from_db()
+        print(f'Initialized database index with size {self.len}', file=sys.stderr)
+
+    def _load_attributes_from_db(self):
+        self.len = self.wordcounts.count_documents({})
+
+    def drop_old_collections(self):
+        '''
+        Drops index from database
+        '''
+        self.wordcounts.drop()
+        self.word2uids.drop()
+        self._load_attributes_from_db()
 
     def __len__(self):
         '''
@@ -429,6 +458,9 @@ class Index:
         Implements fancy syntax: coordle['query here']
         '''
         return self.search(query)
+
+    def add(self, *args, **kwargs):
+        print('Add not implented when using MongoDB')
 
     @staticmethod
     def wordcount_generator(uids, texts):
@@ -497,7 +529,6 @@ class Index:
         uids = df[uid]
 
         self.docmap = dict()
-        self.len += len(df)
 
         for uid_, cleaned_text in tqdm(zip(uids, cleaned_texts), 
                                 desc='Building word to uids map',
@@ -521,17 +552,8 @@ class Index:
                         desc='Inserting wordmap to database', **tqdm_kwargs)
         self.word2uids.insert_many(wm_gen)
 
-    def extend_with_df(self, df: pd.DataFrame, uid: str, title: str,
-                       text: str, use_multiprocessing: bool=False,
-                       workers: int=1, verbose: bool=True,
-                       cleaner: Callable=None):
-        '''Heh'''
-
-    def get_doc(self, uid: str):
-        '''
-        Get document given uid
-        '''
-        return self.uid_docmap[uid]
+        del self.docmap
+        self._load_attributes_from_db()
 
     def search(self, query: Union[str, list], verbose=False) -> tuple:
         '''
@@ -546,8 +568,12 @@ class AI_Index(Index):
     Essentially, uses TF-IDF, but adds similar query tokens
     to given query using AI, Big Data and Machine Learning $$$
     '''
-    def __init__(self, db: str, most_similar: Callable, n_similars: int=3):
-        super().__init__(db)
+    def __init__(self, db: str, most_similar: Callable, n_similars: int=3,
+                 host: str=None, port: int=None, maxPoolSize: int=1000000,
+                 wordcounts: str='wordcounts', word2uids: str='word2uids', 
+                 drop_old_collections: bool=False):
+
+        super().__init__(db, host)
         self.most_similar = most_similar
         self.n_similars = n_similars
 
@@ -630,7 +656,7 @@ class AI_Index(Index):
             # Should always be error message if anything is wrong with query
             assert len(errmsgs) > 0
             return None, None, errmsgs
-
+        
         return super().search(queryqueue)
 
 

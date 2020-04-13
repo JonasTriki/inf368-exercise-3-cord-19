@@ -1,3 +1,23 @@
+'''
+This module contains the backend for Coordle.
+
+Classes:
+    CordDoc: a class to represent a document, contains uid, title and a 
+    dictionary that maps words to integers. The integers denote the count of 
+    the word in the text. 
+
+    RecursiveDescentParser: A class that is to be composed in the index. This
+    class contains everything to parse a query and obtain results. 
+
+    Index: The index class that is meant to be used by the user. This contains
+    methods to build the index. The inde in this module will be stored in RAM,
+    thus achieving very fast query times. If you want the index to be stored in
+    disk, see coordle_mongobackend.py
+
+    AI_Index: Subclasses Index, almost same API as Index, requires a function
+    that takes in a word token and return a list of similar word tokens. 
+'''
+
 import numpy as np
 import pandas as pd
 from utils import clean_text
@@ -13,9 +33,6 @@ from tqdm import tqdm
 from os import cpu_count
 from string import punctuation as PUNCTUATION
 import re
-from pymongo import MongoClient
-from mongoengine import (connect, Document, StringField, IntField, MapField, 
-                         ListField)
 
 class CordDoc:
     '''
@@ -367,6 +384,8 @@ class RecursiveDescentParser:
         if queryqueue is None:
             return None, None, errmsgs
 
+        print(queryqueue)
+
         # Parse queryqueue
         self.uidcache = {} 
 
@@ -390,10 +409,10 @@ class RecursiveDescentParser:
         if len(q) == 0:
             return set()
 
-        results = self._parse_not(q)
+        results = self._parse_difference(q)
         return results
 
-    def _parse_not(self, q: deque) -> set:
+    def _parse_difference(self, q: deque) -> set:
         '''
         TODO: Docs
         '''
@@ -405,7 +424,7 @@ class RecursiveDescentParser:
         curr_token = q[0]
         if curr_token == self.difference_operator:
             q.popleft()
-            return results - self._parse_not(q)
+            return results - self._parse_difference(q)
         else:
             return results
 
@@ -462,7 +481,7 @@ class RecursiveDescentParser:
         '''
         Given a set CordDoc objects and a token, calculate TF-IDF relevance for
         the objects with respect to the token and then store the value inside 
-        the objects. 
+        the objects.
 
         The values should be reset to zero after a search
         '''    
@@ -474,13 +493,13 @@ class RecursiveDescentParser:
             tf = doc.wordcounts[token] / len(doc)
             self.uidcache[doc.uid] += tf*idf
 
+
 class Index:
     '''
     Index object for Cord data
     '''
     def __init__(self):
         self.docmap = dict()
-        # self.uid_docmap = dict()
         self.rdp = RecursiveDescentParser(self)
         self.len = 0
 
@@ -513,9 +532,6 @@ class Index:
         doc, unique_tokens = doc.fit(text)
 
         self.len += 1
-
-        # Add document to hasmap where keys are uids and values are docs
-        # self.uid_docmap[doc.uid] = doc
 
         # Add document to hashmap where keys are unique tokens, and values
         # are sets
