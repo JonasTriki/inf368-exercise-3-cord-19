@@ -5,8 +5,9 @@ import json
 import pandas as pd
 from flask import Flask, request, url_for, redirect, render_template, jsonify
 from gensim.models import Word2Vec
-from utils import fix_authors, EpochSaver
+from utils import fix_authors
 from coordle_backend import AI_Index
+import logging
 
 parser = argparse.ArgumentParser(description='Run Coordle Flask app')
 parser.add_argument('--port', default=5000, help='port to use when serving the flask app (default: 5000)')
@@ -19,7 +20,7 @@ app = Flask(__name__,
 num_per_load = 10
 
 def perform_search(query: str, start: int = 0, stop: int = -1):
-
+    
     # Perform search using AI Index
     docs, _, error_msgs = ai_index.search(query)
 
@@ -71,8 +72,8 @@ def search():
             results, total_results, error_msgs = [], 0, None
         return jsonify(results=results, total_results=total_results, error_msgs=error_msgs, num_per_load=num_per_load)
 
-if __name__ == '__main__':
-
+if __name__ == 'main' or __name__ == '__main__':
+    
     # Load Word2Vec model and create index for search engine
     w2v_model = Word2Vec.load('web/static/cord-19-w2v.model')
     cord_df = pd.read_csv('web/static/cord-19-data.csv', nrows=100)
