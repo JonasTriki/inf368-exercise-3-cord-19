@@ -168,7 +168,11 @@ class RecursiveDescentParser:
 
     def get_logical_querytokens(self, query: str):
         query = re.sub(f'[{self.punctuation}]','',query)
-        querytokens = re.split('([^a-zA-Z0-9])', query)
+        if len(query) == 0:
+            return None
+
+        querytokens: list = re.split('([^a-zA-Z0-9])', query)
+
         # Gotta do this to capture parenthesis
         querytokens = chain.from_iterable([t.split() for t in querytokens])
 
@@ -200,6 +204,9 @@ class RecursiveDescentParser:
         Check if query is properly formatted. Returns True if everything is ok,
         else False. 
         '''
+        print('dada')
+        print(querytokens)
+
         q = querytokens.copy()
         p_list = []
         p_counter = 0 
@@ -349,9 +356,14 @@ class RecursiveDescentParser:
         Returns queryqueue, a deque that contains strings and deques. 
         '''
         querytokens: deque = self.get_logical_querytokens(query)
-
+        
         # Assert that query is well formatted
         errmsgs = []
+
+        # Happens if no query tokens
+        if querytokens is None:
+            return deque(), errmsgs
+
         if not self.assert_query(querytokens, errmsgs):
             return None, errmsgs
 
@@ -380,11 +392,13 @@ class RecursiveDescentParser:
         else:
             raise ValueError(f'Got unsupported type for query, got {type(deque)}')
 
+        # Happens only if queryqueue is empty
+        if errmsgs is None:
+            return [], [], []
+
         # If invalid query
         if queryqueue is None:
             return None, None, errmsgs
-
-        print(queryqueue)
 
         # Parse queryqueue
         self.uidcache = {} 
@@ -612,6 +626,7 @@ class Index:
         '''
         return self.rdp.search(query)
 
+
 class AI_Index(Index):
     '''
     Essentially, uses TF-IDF, but adds similar query tokens 
@@ -675,6 +690,10 @@ class AI_Index(Index):
 
         # Assert that query is well formatted
         errmsgs = []
+
+        if querytokens is None:
+            return deque(), errmsgs
+
         if not self.rdp.assert_query(querytokens, errmsgs):
             return None, errmsgs
 
@@ -689,7 +708,7 @@ class AI_Index(Index):
         queryqueue = self.rdp.parenthesis_handler(querytokens)
 
         return queryqueue, errmsgs
-    
+ 
     def search(self, query: str) -> tuple:
         '''
         Returns a list of query results given
@@ -703,8 +722,7 @@ class AI_Index(Index):
             return None, None, errmsgs
 
         return self.rdp.search(queryqueue)
-        
-        
+
 
         
 
