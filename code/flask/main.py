@@ -5,8 +5,7 @@ import pandas as pd
 from flask import Flask, request, url_for, redirect, render_template, jsonify
 from gensim.models import Word2Vec
 from utils import fix_authors, EpochSaver
-from coordle_backend import (CordDoc, Index, RecursiveDescentParser, 
-                             AI_Index, DocWordCounts, WordToDoc)
+from coordle_backend import AI_Index
 
 app = Flask(__name__,
             static_url_path='', 
