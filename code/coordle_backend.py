@@ -44,7 +44,7 @@ class CordDoc:
         '''
         self.uid = uid
         self.title = title
-        self.wordfreqs = dict()
+        self.wordcounts = dict()
 
     def __len__(self):
         '''
@@ -76,7 +76,7 @@ class CordDoc:
         return not self.__eq__(other)
     
     def __contains__(self, word):
-        return word in self.wordfreqs
+        return word in self.wordcounts
 
     def fit(self, text: str, cleaner: Callable=None, **kwargs) -> tuple:
         '''
@@ -97,8 +97,6 @@ class CordDoc:
         Tuple of self and the cleaned and tokenized sentences
         (self, unique_tokens)
         '''
-        self.len = len(text)
-
         if type(text) == str:
             if cleaner is None:
                 cleaner = clean_text
@@ -108,8 +106,10 @@ class CordDoc:
         else:
             raise ValueError(f'Unsupported type for text, got f{type(text)}')
 
+        self.len = len(tokens)
+
         uniques, counts = np.unique(tokens, return_counts=True)
-        self.wordfreqs = {word:count for word, count in zip(uniques, counts)}
+        self.wordcounts = {word:count for word, count in zip(uniques, counts)}
         return self, uniques
 
 
@@ -123,7 +123,7 @@ class RecursiveDescentParser:
 
     This class is made to be composed in coordle_backend.Index
     '''
-    def __init__(self, token_to_set: dict, or_operator: str='OR', 
+    def __init__(self, index: 'Index', or_operator: str='OR', 
                  and_operator: str='AND', difference_operator: str='NOT', 
                  punctuation: str=None):
         '''
@@ -132,7 +132,8 @@ class RecursiveDescentParser:
         sets: a dictionary where keys correspond to query tokens, and values
               are sets containing CordDoc objects
         '''
-        self.token_to_set = token_to_set
+        self.index = index
+        self.token_to_set = self.index.docmap
         
         self.or_operator = or_operator
         self.and_operator = and_operator
@@ -367,12 +368,12 @@ class RecursiveDescentParser:
             return None, None, errmsgs
 
         # Parse queryqueue
-        self.temp = {} 
+        self.uidcache = {} 
 
         results = self.parse(queryqueue)
 
         results_list = np.array(list(results))
-        scores = np.array([self.temp[doc.uid] for doc in results_list])
+        scores = np.array([self.uidcache[doc.uid] for doc in results_list])
 
         sort_idx = np.argsort(scores)[::-1]
         results_list = results_list[sort_idx]
@@ -466,11 +467,12 @@ class RecursiveDescentParser:
         The values should be reset to zero after a search
         '''    
         for doc in docs:
-            idf = np.log(len(self.token_to_set) / len(docs))
-            tf = doc.wordfreqs[token] / len(doc)
-            if doc.uid not in self.temp:
-                self.temp[doc.uid] = 0
-            self.temp[doc.uid] += tf*idf
+            if doc.uid not in self.uidcache:
+                self.uidcache[doc.uid] = 0.0
+
+            idf = np.log(len(self.index) / len(docs))
+            tf = doc.wordcounts[token] / len(doc)
+            self.uidcache[doc.uid] += tf*idf
 
 class Index:
     '''
@@ -478,14 +480,15 @@ class Index:
     '''
     def __init__(self):
         self.docmap = dict()
-        self.uid_docmap = dict()
-        self.rdp = RecursiveDescentParser(self.docmap)
+        # self.uid_docmap = dict()
+        self.rdp = RecursiveDescentParser(self)
+        self.len = 0
 
     def __len__(self):
         '''
         Implements polymorphism for len function
         '''
-        return len(self.docmap)
+        return self.len
     
     def __getitem__(self, query: str) -> tuple:
         '''
@@ -509,8 +512,10 @@ class Index:
         doc = CordDoc(uid=uid, title=title)
         doc, unique_tokens = doc.fit(text)
 
+        self.len += 1
+
         # Add document to hasmap where keys are uids and values are docs
-        self.uid_docmap[doc.uid] = doc
+        # self.uid_docmap[doc.uid] = doc
 
         # Add document to hashmap where keys are unique tokens, and values
         # are sets

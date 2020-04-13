@@ -267,12 +267,16 @@ class RecursiveDescentParser:
             return None, None, errmsgs
 
         # Parse queryqueue
-        self.temp = {}
+        
+        # uids as keys and lists of [score, len, wordcounts] as values
+        self.uidcache = {}
+        # tokens as keys and sets as values
+        self.tokencache = {}
 
         results = self.parse(queryqueue)
 
         results_list = np.array(list(results))
-        scores = np.array([self.temp[doc.uid] for doc in results_list])
+        scores = np.array([self.uidcache[uid][0] for uid in results_list])
 
         sort_idx = np.argsort(scores)[::-1]
         results_list = results_list[sort_idx]
@@ -350,12 +354,22 @@ class RecursiveDescentParser:
         if type(curr_token) == deque:
             return self.parse(curr_token)
 
-        if curr_token in self.token_to_set:
-            results: set = self.token_to_set[curr_token]
-            self._tf_idf(results, curr_token)
-            return results
+        # print(self.tokencache)
+        if curr_token in self.tokencache:
+            db_results = self.tokencache[curr_token]
         else:
+            db_results = self.word2uids.find_one({'_id':curr_token})
+            # Database returns None if word not found
+            if db_results is not None:
+                # Dict keys behave like sets
+                db_results = db_results['uids'].keys()
+            self.tokencache[curr_token] = db_results
+
+        if db_results is None:
             return set()
+        else:
+            self._tf_idf(db_results, curr_token)
+            return db_results
 
     def _tf_idf(self, docs: set, token: str):
         '''
@@ -365,13 +379,17 @@ class RecursiveDescentParser:
         the objects.
         '''
         for uid in docs:
-            idf = np.log(len(self.index) / len(docs))
-            # self.wordcounts.find_one({'_id':uid})
-            tf = doc.wordfreqs[token] / len(doc)
-            if uid not in self.temp:
-                self.temp[uid] = 0
-            self.temp[uid] += tf*idf
+            if uid not in self.uidcache:
+                doc: dict = self.wordcounts.find_one({'_id':uid})
+                self.uidcache[uid] = [0.0, doc['len'], doc['wordcounts']]
 
+            # [score: float, len: int, wordcounts: dict]
+            item: list = self.uidcache[uid] 
+            
+            idf = np.log(len(self.index) / len(docs))
+            tf = item[2][token] / item[1]
+            item[0] += tf*idf
+        print(len(docs))
 
 class Index:
     '''
@@ -379,8 +397,8 @@ class Index:
     '''
     def __init__(self, db: str, host=None, port: int=None, 
                  maxPoolSize: int=1000000, wordcounts: str='wordcounts',
-                 word2uids: str='word2uids', drop_old_collections: bool=True):
-        # self.rdp = RecursiveDescentParser(self.docmap)
+                 word2uids: str='word2uids', drop_old_collections: bool=False):
+
         self.mongoclient = MongoClient(host=host, port=port,
                                        maxPoolSize=maxPoolSize)
         self.db = self.mongoclient[db]
@@ -397,6 +415,9 @@ class Index:
         self.rdp = RecursiveDescentParser(self)
         self.len = 0
 
+    def load_attributes_from_db(self):
+        pass
+
     def __len__(self):
         '''
         Implements polymorphism for len function
@@ -408,33 +429,6 @@ class Index:
         Implements fancy syntax: coordle['query here']
         '''
         return self.search(query)
-
-    def add(self, uid: str, title: str, text: Union[str, Iterable]):
-        '''
-        Adds document to index
-
-        Parameters:
-        -------------
-        uid: unique identification string
-
-        title: title of document
-
-        text: text of document
-        '''
-        # Make wordfreqs
-        doc = CordDoc(uid=uid, title=title)
-        doc, unique_tokens = doc.fit(text)
-
-        # Add document to hasmap where keys are uids and values are docs
-        self.uid_docmap[doc.uid] = doc
-        self.len += 1
-
-        # Add document to hashmap where keys are unique tokens, and values
-        # are sets
-        for token in unique_tokens:
-            if token not in self.docmap:
-                self.docmap[token]=set()
-            self.docmap[token].add(doc)
 
     @staticmethod
     def wordcount_generator(uids, texts):
@@ -491,34 +485,29 @@ class Index:
                     desc='Cleaning texts', total=len(df),
                     **tqdm_kwargs
                 )
-                texts=list(clean_generator)
+                cleaned_texts=list(clean_generator)
         else:
             clean_generator = tqdm(
                 (cleaner(t) for t in df[text]),
                 desc='Cleaning texts', total=len(df),
                 **tqdm_kwargs
             )
-            texts = list(clean_generator)
+            cleaned_texts = list(clean_generator)
 
         uids = df[uid]
-        titles = df[title]
-
-        # wc_gen = tqdm(self.wordcount_generator(uids, texts), 
-        #               desc='Inserting word counts to database', total=len(df), 
-        #               **tqdm_kwargs)
-        # self.wordcounts.insert_many(wc_gen)
 
         self.docmap = dict()
         self.len += len(df)
 
-        for uid_, text_ in tqdm(zip(uids, texts), 
+        for uid_, cleaned_text in tqdm(zip(uids, cleaned_texts), 
                                 desc='Building word to uids map',
                                 total=len(df), **tqdm_kwargs):
-            counts: pd.Series = pd.value_counts(text_, sort=False)
+            counts: pd.Series = pd.value_counts(cleaned_text, sort=False)
             
             unique_tokens = counts.index.values
+        
             self.wordcounts.insert_one(
-                {'_id':uid_, 'wordcounts':counts.to_dict()})
+                {'_id':uid_, 'len':len(cleaned_text), 'wordcounts':counts.to_dict()})
 
             # Add document to hashmap where keys are unique tokens, and values
             # are sets
@@ -557,8 +546,8 @@ class AI_Index(Index):
     Essentially, uses TF-IDF, but adds similar query tokens
     to given query using AI, Big Data and Machine Learning $$$
     '''
-    def __init__(self, most_similar: Callable, n_similars: int=3):
-        super().__init__()
+    def __init__(self, db: str, most_similar: Callable, n_similars: int=3):
+        super().__init__(db)
         self.most_similar = most_similar
         self.n_similars = n_similars
 
@@ -638,11 +627,11 @@ class AI_Index(Index):
         queryqueue, errmsgs = self._preprocess_query_with_ai(query)
 
         if queryqueue is None:
-            # Should always be error message if anything is wron with query
+            # Should always be error message if anything is wrong with query
             assert len(errmsgs) > 0
             return None, None, errmsgs
 
-        return self.rdp.search(queryqueue)
+        return super().search(queryqueue)
 
 
 
