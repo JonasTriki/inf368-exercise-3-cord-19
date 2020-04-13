@@ -1,11 +1,13 @@
-const add_results = (results, tpSearchResult, divResults, bodyTextModal) => {
-  for (const result of results) {
+const add_results = (results, current_num_results, tpSearchResult, divResults, bodyTextModal) => {
+  for (let i = 0; i < results.length; i++) {
+    result = results[i];
 
     // Clone template
     const searchResult = tpSearchResult.content.cloneNode(true);
 
     // Query DOM elements
-    const searchTitle = searchResult.querySelector(".search-result-title");
+    const searchTitleATag = searchResult.querySelector(".search-result-title a");
+    const searchTitleNumber = searchResult.querySelector(".search-result-title .search-result-number");
     const searchSubtitle = searchResult.querySelector(
       ".search-result-subtitle"
     );
@@ -14,9 +16,10 @@ const add_results = (results, tpSearchResult, divResults, bodyTextModal) => {
     );
 
     // Update content
+    searchTitleNumber.innerHTML = `${current_num_results + i + 1}.`;
     const title = result.title || 'No title';
-    searchTitle.innerHTML = title;
-    searchTitle.href = result.url;
+    searchTitleATag.innerHTML = title;
+    searchTitleATag.href = result.url;
     const subtitle = `${result.authors}, ${result.source}, ${result.journal}, ${result.publish_time}`;
     searchSubtitle.innerHTML = subtitle;
     searchTextSnippet.innerHTML = `${result.body_text.substring(0, 300)} {...}`;
@@ -58,10 +61,19 @@ const no_results_found = (divNoResults, total_results) => {
   }
 }
 
+const set_loading_visibility = (visible, divLoading) => {
+  if (!visible) {
+    divLoading.classList.add("hidden");
+  } else {
+    divLoading.classList.remove("hidden");
+  }
+}
+
 window.onload = function () {
   // Get DOM elements
   const txtSearchBox = document.querySelector("#search-box");
   const divResults = document.querySelector("#results");
+  const divLoading = document.querySelector("#loading");
   const divNoResults = document.querySelector("#no-results");
   const btnLoadMore = document.querySelector("#load-more");
   const tpSearchResult = document.querySelector("#template-search-result");
@@ -75,6 +87,7 @@ window.onload = function () {
   let num_per_load;
   let num_results = 0;
   if (query.length > 0) {
+    set_loading_visibility(true, divLoading);
     fetch(`/search?q=${query}`, { method: "POST" })
       .then((res) => res.json())
       .then((json) => {
@@ -85,13 +98,17 @@ window.onload = function () {
         const results = JSON.parse(json.results);
         
         // Add results and set "Load more" button visibility
-        add_results(results, tpSearchResult, divResults, bodyTextModal);
+        add_results(results, num_results, tpSearchResult, divResults, bodyTextModal);
         num_results += results.length;
         load_more_visibility(btnLoadMore, json.total_results, num_results);
         no_results_found(divNoResults, json.total_results);
         num_per_load = json.num_per_load;
+        set_loading_visibility(false, divLoading);
       })
-      .catch((err) => console.log("Error while searching: ", err));
+      .catch((err) => {
+        console.log("Error while searching: ", err);
+        set_loading_visibility(false, divLoading);
+      });
   }
 
   // Modal events
@@ -136,7 +153,7 @@ window.onload = function () {
           const results = JSON.parse(json.results);
 
           // Add results and set "Load more" button visibility
-          add_results(results, tpSearchResult, divResults, bodyTextModal);
+          add_results(results, num_results, tpSearchResult, divResults, bodyTextModal);
           num_results += results.length;
           load_more_visibility(btnLoadMore, json.total_results, num_results);
           num_per_load = json.num_per_load;
