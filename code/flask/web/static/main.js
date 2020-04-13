@@ -1,5 +1,6 @@
 const add_results = (results, tpSearchResult, divResults, bodyTextModal) => {
   for (const result of results) {
+
     // Clone template
     const searchResult = tpSearchResult.content.cloneNode(true);
 
@@ -13,14 +14,15 @@ const add_results = (results, tpSearchResult, divResults, bodyTextModal) => {
     );
 
     // Update content
-    searchTitle.innerHTML = result.title;
+    const title = result.title || 'No title';
+    searchTitle.innerHTML = title;
     searchTitle.href = result.url;
     const subtitle = `${result.authors}, ${result.source}, ${result.journal}, ${result.publish_time}`;
     searchSubtitle.innerHTML = subtitle;
     searchTextSnippet.innerHTML = `${result.body_text.substring(0, 300)} {...}`;
     searchTextSnippet.addEventListener("click", () => {
       // Set title/subtitle
-      bodyTextModal.querySelector(".modal-title").innerHTML = result.title;
+      bodyTextModal.querySelector(".modal-title").innerHTML = title;
       bodyTextModal.querySelector(".modal-subtitle").innerHTML = subtitle;
 
       // Add paragraphs for each newline in the body text
@@ -40,18 +42,27 @@ const add_results = (results, tpSearchResult, divResults, bodyTextModal) => {
   }
 };
 
-const load_more_visibility = (btnLoadMore, is_bottom) => {
-  if (is_bottom) {
+const load_more_visibility = (btnLoadMore, total_results, current_num_results) => {
+  if (total_results == 0 || total_results == current_num_results) {
     btnLoadMore.classList.add("hidden");
   } else {
     btnLoadMore.classList.remove("hidden");
   }
 };
 
+const no_results_found = (divNoResults, total_results) => {
+  if (total_results > 0) {
+    divNoResults.classList.add("hidden");
+  } else {
+    divNoResults.classList.remove("hidden");
+  }
+}
+
 window.onload = function () {
   // Get DOM elements
   const txtSearchBox = document.querySelector("#search-box");
   const divResults = document.querySelector("#results");
+  const divNoResults = document.querySelector("#no-results");
   const btnLoadMore = document.querySelector("#load-more");
   const tpSearchResult = document.querySelector("#template-search-result");
   const bodyTextModal = document.querySelector("#cord-body-text-modal");
@@ -67,10 +78,17 @@ window.onload = function () {
     fetch(`/search?q=${query}`, { method: "POST" })
       .then((res) => res.json())
       .then((json) => {
+        if (json.error_msgs) {
+          console.log("error, ", json.error_msgs);
+          return;
+        }
+        const results = JSON.parse(json.results);
+        
         // Add results and set "Load more" button visibility
-        add_results(json.results, tpSearchResult, divResults, bodyTextModal);
-        num_results += json.results.length;
-        load_more_visibility(btnLoadMore, json.total_results == num_results);
+        add_results(results, tpSearchResult, divResults, bodyTextModal);
+        num_results += results.length;
+        load_more_visibility(btnLoadMore, json.total_results, num_results);
+        no_results_found(divNoResults, json.total_results);
         num_per_load = json.num_per_load;
       })
       .catch((err) => console.log("Error while searching: ", err));
@@ -85,16 +103,20 @@ window.onload = function () {
       bodyTextModal.style.display = "none";
     }
   };
-  window.addEventListener('keydown', function (e) {
-    if (
-      (e.key == "Escape" || e.key == "Esc" || e.keyCode == 27) &&
-      e.target.nodeName == "BODY"
-    ) {
-      bodyTextModal.style.display = "none";
-      e.preventDefault();
-      return false;
-    }
-  }, true);
+  window.addEventListener(
+    "keydown",
+    function (e) {
+      if (
+        (e.key == "Escape" || e.key == "Esc" || e.keyCode == 27) &&
+        e.target.nodeName == "BODY"
+      ) {
+        bodyTextModal.style.display = "none";
+        e.preventDefault();
+        return false;
+      }
+    },
+    true
+  );
 
   // Load more button onclick event
   if (btnLoadMore !== null) {
@@ -107,10 +129,16 @@ window.onload = function () {
       )
         .then((res) => res.json())
         .then((json) => {
+          if (json.error_msgs) {
+            console.log("error, ", json.error_msgs);
+            return;
+          }
+          const results = JSON.parse(json.results);
+
           // Add results and set "Load more" button visibility
-          add_results(json.results, tpSearchResult, divResults, bodyTextModal);
-          num_results += json.results.length;
-          load_more_visibility(btnLoadMore, json.total_results == num_results);
+          add_results(results, tpSearchResult, divResults, bodyTextModal);
+          num_results += results.length;
+          load_more_visibility(btnLoadMore, json.total_results, num_results);
           num_per_load = json.num_per_load;
         })
         .catch((err) => console.log("Error while loading more: ", err));
