@@ -65,11 +65,13 @@
         <template id="template-search-result">
           <div class="search-result">
             <div class="search-result-content">
-              <a
-                class="search-result-title"
-                rel="noopener noreferrer"
-                target="_blank"
-              ></a>
+              <div class="search-result-title">
+                <div class="search-result-number"></div>
+                <a
+                  rel="noopener noreferrer"
+                  target="_blank"
+                ></a>
+              </div>
               <div class="search-result-subtitle"></div>
               <div class="search-result-text-snippet"></div>
             </div>
@@ -77,6 +79,9 @@
         </template>
         <div id="no-results" class="hidden">
           Sorry, no results were found. 
+        </div>
+        <div id="loading" class="hidden">
+          <img src="{{ url_for('static', filename='loading.svg') }}"/>
         </div>
       </div>
       <button type="button" id="load-more" class="hidden">

@@ -1,3 +1,4 @@
+import argparse
 import sys
 sys.path.insert(0, '..')
 import json
@@ -6,6 +7,10 @@ from flask import Flask, request, url_for, redirect, render_template, jsonify
 from gensim.models import Word2Vec
 from utils import fix_authors, EpochSaver
 from coordle_backend import AI_Index
+
+parser = argparse.ArgumentParser(description='Run Coordle Flask app')
+parser.add_argument('--port', default=5000, help='port to use when serving the flask app (default: 5000)')
+port = parser.parse_args().port
 
 app = Flask(__name__,
             static_url_path='', 
@@ -82,4 +87,5 @@ if __name__ == '__main__':
         workers=-1
     )
 
-    app.run()
+    # Run flask app
+    app.run(port=port)
