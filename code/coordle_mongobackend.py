@@ -19,7 +19,7 @@ Classes:
 
 import numpy as np
 import pandas as pd
-from utils import clean_text
+from coordle.utils import clean_text
 from typing import Iterable, Union, Callable
 import nltk
 from collections import deque
