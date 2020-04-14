@@ -4,7 +4,7 @@ In the third exercise for the Selected Topics in Machine Learning (topic being "
 ## Kaggle challenge
 We decided to create a search engine for the articles in the CORD-19 dataset using TF-IDF and word embeddings using Word2Vec.
 
-#### TF-IDF 
+### TF-IDF 
 [TF-IDF](http://tfidf.com/) stands for *term frequency-inverse document frequency*. It is a weight that is used often used for information retrieval and text mining. Given a collection of documents, TF-IDF is a statistical measure used to determine how strongly connected a word is to a specific document relatively to all the other documents. Given a word and a document from the collection, we compute TF (term frequency) and multiply it with IDF (inverse document frequency) to obtain its TF-IDF weight. The calculations are as follows:
 
 TF = (number of times the word appears in the document) / (total number of words in said document)
