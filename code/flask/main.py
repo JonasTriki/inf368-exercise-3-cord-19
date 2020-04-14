@@ -19,31 +19,47 @@ app = Flask(__name__,
             template_folder='web/templates')
 num_per_load = 10
 
+# Load Word2Vec model and create index for search engine
+w2v_model = Word2Vec.load('web/static/cord-19-w2v.model')
+cord_df = pd.read_csv('web/static/cord-19-data.csv')
+ai_index = AI_Index(w2v_model.wv.most_similar, n_similars=1)
+ai_index.build_from_df(
+    df=cord_df,
+    uid='cord_uid',
+    title='title',
+    text='body_text', 
+    verbose=True, 
+    use_multiprocessing=True,
+    workers=-1
+)
+
 def perform_search(query: str, start: int = 0, stop: int = -1):
     
     # Perform search using AI Index
     docs, _, error_msgs = ai_index.search(query)
-
+    
     if error_msgs:
         return [error_msgs]
     else:
+        uids = [doc.uid for doc in docs]
+        
         # Ensure start/stop is within range
         if start < 0:
             start = 0
-        if start > len(docs):
-            start = len(docs) - num_per_load
+        if start > len(uids):
+            start = len(uids) - num_per_load
         if stop < num_per_load:
             stop = num_per_load
-        if stop > len(docs):
-            stop = len(docs)
+        if stop > len(uids):
+            stop = len(uids)
 
         # Extract resulting rows from df
-        cord_uids = [doc.uid for doc in docs[start:stop]]
+        cord_uids = uids[start:stop]
         result_df = cord_df[cord_df.cord_uid.isin(cord_uids)]
         result_df.loc[:, 'authors'] = result_df['authors'].apply(fix_authors)
         results = result_df.to_json(orient='records')
 
-        return [results, len(docs)]
+        return [results, len(uids)]
 
 @app.route('/')
 def home():
@@ -71,22 +87,8 @@ def search():
         else:
             results, total_results, error_msgs = [], 0, None
         return jsonify(results=results, total_results=total_results, error_msgs=error_msgs, num_per_load=num_per_load)
-
-if __name__ == 'main' or __name__ == '__main__':
     
-    # Load Word2Vec model and create index for search engine
-    w2v_model = Word2Vec.load('web/static/cord-19-w2v.model')
-    cord_df = pd.read_csv('web/static/cord-19-data.csv', nrows=100)
-    ai_index = AI_Index(w2v_model.wv.most_similar, n_similars=1)
-    ai_index.build_from_df(
-        df=cord_df,
-        uid='cord_uid',
-        title='title',
-        text='body_text', 
-        verbose=True, 
-        use_multiprocessing=True,
-        workers=-1
-    )
+if __name__ == '__main__':
 
     # Run flask app
     app.run(port=port)
