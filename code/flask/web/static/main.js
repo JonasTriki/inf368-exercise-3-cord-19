@@ -69,12 +69,31 @@ const set_loading_visibility = (visible, divLoading) => {
   }
 }
 
+const hide_error_messages = (divErrorMessagesWrapper) => {
+  divErrorMessagesWrapper.classList.add("hidden");
+}
+
+const show_error_messages = (divErrorMessagesWrapper, ulErrorMessages, errorMsgs) => {
+  while (ulErrorMessages.firstChild) {
+    ulErrorMessages.firstChild.remove();
+  }
+  for (errorMsg of errorMsgs) {
+    const errorMsgElem = document.createElement("li");
+    errorMsgElem.classList.add("error-message")
+    errorMsgElem.innerHTML = errorMsg
+    ulErrorMessages.appendChild(errorMsgElem)
+  }
+  divErrorMessagesWrapper.classList.remove("hidden");
+}
+
 window.onload = function () {
   // Get DOM elements
   const txtSearchBox = document.querySelector("#search-box");
   const divResults = document.querySelector("#results");
   const divLoading = document.querySelector("#loading");
   const divNoResults = document.querySelector("#no-results");
+  const divErrorMessagesWrapper = document.querySelector("#error-messages-wrapper");
+  const ulErrorMessages = document.querySelector("#error-messages");
   const btnLoadMore = document.querySelector("#load-more");
   const tpSearchResult = document.querySelector("#template-search-result");
   const bodyTextModal = document.querySelector("#cord-body-text-modal");
@@ -87,12 +106,15 @@ window.onload = function () {
   let num_per_load;
   let num_results = 0;
   if (query.length > 0) {
+    hide_error_messages(divErrorMessagesWrapper);
     set_loading_visibility(true, divLoading);
     fetch(`/search?q=${query}`, { method: "POST" })
       .then((res) => res.json())
       .then((json) => {
         if (json.error_msgs) {
           console.log("error, ", json.error_msgs);
+          set_loading_visibility(false, divLoading);
+          show_error_messages(divErrorMessagesWrapper, ulErrorMessages, json.error_msgs);
           return;
         }
         const results = JSON.parse(json.results);
@@ -106,8 +128,8 @@ window.onload = function () {
         set_loading_visibility(false, divLoading);
       })
       .catch((err) => {
-        console.log("Error while searching: ", err);
         set_loading_visibility(false, divLoading);
+        show_error_messages(divErrorMessagesWrapper, ulErrorMessages, [`Error while searching: ${err}`]);
       });
   }
 
@@ -148,6 +170,8 @@ window.onload = function () {
         .then((json) => {
           if (json.error_msgs) {
             console.log("error, ", json.error_msgs);
+            set_loading_visibility(false, divLoading);
+            show_error_messages(divErrorMessagesWrapper, ulErrorMessages, json.error_msgs);
             return;
           }
           const results = JSON.parse(json.results);
@@ -158,7 +182,10 @@ window.onload = function () {
           load_more_visibility(btnLoadMore, json.total_results, num_results);
           num_per_load = json.num_per_load;
         })
-        .catch((err) => console.log("Error while loading more: ", err));
+        .catch((err) => {
+          set_loading_visibility(false, divLoading);
+          show_error_messages(divErrorMessagesWrapper, ulErrorMessages, [`Error while loading more: ${err}`]);
+        });
     });
   }
 };

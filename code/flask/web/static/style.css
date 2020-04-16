@@ -172,6 +172,15 @@ a.hidden:active {
   font-weight: bold;
 }
 
+#error-messages-wrapper {
+  width: 50rem;
+  font-size: 1.25rem;
+}
+
+#error-messages-wrapper span {
+  font-weight: bold;
+}
+
 .search-result {
   max-width: 50rem;
   display: flex;

@@ -80,6 +80,10 @@
         <div id="no-results" class="hidden">
           Sorry, no results were found. 
         </div>
+        <div id="error-messages-wrapper" class="hidden">
+          <span>Sorry, there were one or more problems with your query:</span>
+          <ul id="error-messages"></ul>
+        </div>
         <div id="loading" class="hidden">
           <img src="{{ url_for('static', filename='loading.svg') }}"/>
         </div>
