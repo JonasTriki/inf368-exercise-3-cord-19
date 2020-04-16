@@ -24,7 +24,7 @@ w2v_model = Word2Vec.load('web/static/cord-19-w2v.model')
 cord_df = pd.read_csv('web/static/cord-19-data.csv')
 coordle_index = QueryAppenderIndex(w2v_model.wv.most_similar, n_similars=1)
 coordle_index.build_from_df(
-    df=cord_df[:100],
+    df=cord_df,
     uid='cord_uid',
     title='title',
     text='body_text', 
